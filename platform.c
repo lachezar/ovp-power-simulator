@@ -22,8 +22,10 @@
 #include <stdlib.h>
 
 #include "icm/icmCpuManager.h"
+#include "hex_loader.h"
 
 // Function prototype and variables used
+static void simulate_custom_platform(icmProcessorP processor);
 static void parseArgs(int argc, char ** argv);
 static ICM_MEM_READ_FN(extMemReadCB);
 static ICM_MEM_WRITE_FN(extMemWriteCB);
@@ -113,10 +115,23 @@ int main(int argc, char ** argv) {
     
 
     // load the processor object file
-    icmLoadProcessorMemory(processor, application, ICM_LOAD_PHYSICAL, True, True);
+    //icmLoadProcessorMemory(processor, application, ICM_LOAD_PHYSICAL, True, True);
 
+    // Load Hex file into Simulator Memory
+    char *dot = strrchr(application, '.');
+    if (dot && !strcmp(dot, ".hex")) {      
+      if (loadHexFile(processor, (char*)application, False) != 0) {
+          icmPrintf("Hex File Load of %s Failed\n", application);
+          icmTerminate();
+          return -1;
+      }
+    } else {
+      icmLoadProcessorMemory(processor, application, ICM_LOAD_PHYSICAL, True, True);
+    }
+    
     // Run the simulation
-    icmSimulatePlatform();
+    //icmSimulatePlatform();
+    simulate_custom_platform(processor);
 
     // free simulation data structures
     icmTerminate();
@@ -124,6 +139,32 @@ int main(int argc, char ** argv) {
     return 0;
 }
 
+static void simulate_custom_platform(icmProcessorP processor) {
+  Bool done = False;
+  
+  while(!done) {
+
+      Uns32 currentPC = (Uns32)icmGetPC(processor);
+      const char* disassemble = icmDisassemble(processor, currentPC);
+      
+      // disassemble instruction at current PC
+      icmPrintf(
+          "0x%08x : %s\n", currentPC,
+          disassemble
+      );
+
+      // execute one instruction
+      done = (icmSimulate(processor, 1) != ICM_SR_SCHED);
+      
+      // exit if pc is specific value?
+      if (!done && strstr(disassemble, "e7fe") != NULL) {
+        done = True;
+      }
+
+      // dump registers
+      icmDumpRegisters(processor);
+  } 
+}
 
 static void parseArgs(int argc, char ** argv) {
 

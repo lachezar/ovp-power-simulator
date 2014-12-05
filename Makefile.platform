@@ -88,7 +88,7 @@ endif
 		$(WRITEHEADER)			            \
 		--overwrite
 
-$(WORKDIR)/$(EXECUTABLE): $(PLATOBJ)
+$(WORKDIR)/$(EXECUTABLE): $(PLATOBJ) $(OBJDIR)/hex_loader.o # make it general
 	$(V) mkdir -p $(@D)
 	@    echo "# Host Linking Platform $@"
 	$(V) sleep 1
@@ -100,7 +100,7 @@ ifeq ($(COPYXML),1)
 endif
 
 
-$(WORKDIR)/$(SHAREDOBJ): $(PLATOBJ)
+$(WORKDIR)/$(SHAREDOBJ): $(PLATOBJ) $(OBJDIR)/hex_loader.o # make it general
 	$(V) mkdir -p $(@D)
 	@    echo "# Host Linking Platform object $@"
 	$(V) strace $(CC) -shared -o $@ $^ $(SIM_LDFLAGS) $(LDFLAGS) $(IMPERAS_ICMSTUBS)

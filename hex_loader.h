@@ -1,0 +1,1 @@
+int loadHexFile(icmProcessorP processor, char *fileName, Bool swap);
