@@ -31,6 +31,18 @@ static ICM_MEM_READ_FN(extMemReadCB);
 static ICM_MEM_WRITE_FN(extMemWriteCB);
 static ICM_MEM_READ_FN(extMemReadGPIOCB);
 static ICM_MEM_WRITE_FN(extMemWriteGPIOCB);
+static ICM_MEM_READ_FN(extMemReadUICRCB);
+static ICM_MEM_WRITE_FN(extMemWriteUICRCB);
+static ICM_MEM_READ_FN(extMemReadFICRCB);
+static ICM_MEM_WRITE_FN(extMemWriteFICRCB);
+static ICM_MEM_READ_FN(extMemReadNVMCCB);
+static ICM_MEM_WRITE_FN(extMemWriteNVMCCB);
+static ICM_MEM_READ_FN(extMemReadClockCB);
+static ICM_MEM_WRITE_FN(extMemWriteClockCB);
+static ICM_MEM_READ_FN(extMemReadRTCCB);
+static ICM_MEM_WRITE_FN(extMemWriteRTCCB);
+static ICM_MEM_READ_FN(extMemReadTimer0CB);
+static ICM_MEM_WRITE_FN(extMemWriteTimer0CB);
 const char *application;
 const char *processorType;
 const char *alternateVendor;
@@ -67,6 +79,8 @@ int main(int argc, char ** argv) {
     icmAddStringAttr(icmAttr, "variant",       "Cortex-M3");
     icmAddStringAttr(icmAttr, "UAL",           "1"); 
     icmAddDoubleAttr(icmAttr, "mips", 15.04);
+    icmAddUns32Attr(icmAttr, "override_numInterrupts", 32); // we use more interrupts than the default value of the CPU model
+    
 
     // create a processor
     icmProcessorP processor = icmNewProcessor(
@@ -92,8 +106,17 @@ int main(int argc, char ** argv) {
     icmMemoryP memory2 = icmNewMemory("mem2", ICM_PRIV_RWX, 0x00040000 - 0x00000000 - 1);
     icmMemoryP memory_secret = icmNewMemory("mem_secret", ICM_PRIV_R, 0xf);
     //icmMemoryP memory_gpio = icmNewMemory("mem_gpio", ICM_PRIV_RW, 0x50001000 - 0x50000000 - 1);
-    icmMemoryP memory3 = icmNewMemory("mem3", ICM_PRIV_RWX, 0x40001000 - 0x40000000 - 1);
+    //icmMemoryP memory3 = icmNewMemory("mem3", ICM_PRIV_RWX, 0x40001000 - 0x40000000 - 1);
     //icmMemoryP memory4 = icmNewMemory("mem4", ICM_PRIV_RWX, 0xFFFFFFFF - 0x40080000);
+    //icmMemoryP memory_nvmc = icmNewMemory("mem_nvmc", ICM_PRIV_RWX, 0x4001F000 - 0x4001E000 - 1);
+    icmMemoryP memory_radio = icmNewMemory("mem_radio", ICM_PRIV_RWX, 4);
+    icmMemoryP memory_temp = icmNewMemory("mem_temp", ICM_PRIV_RWX, 4);
+    //icmMemoryP memory_timer0 = icmNewMemory("mem_timer0", ICM_PRIV_RWX, 4);
+    icmMemoryP memory_crypto = icmNewMemory("mem_crypto", ICM_PRIV_RWX, 4);
+    icmMemoryP memory_aar = icmNewMemory("mem_aar", ICM_PRIV_RWX, 4);
+    //icmMemoryP memory_rtc = icmNewMemory("mem_rtc", ICM_PRIV_RWX, 4);
+    icmMemoryP memory_wdt = icmNewMemory("mem_wdt", ICM_PRIV_RWX, 4);
+    icmMemoryP memory_ppi = icmNewMemory("mem_ppi", ICM_PRIV_RWX, 1024);
 
     icmMapExternalMemory(
       bus, "external_gpio", ICM_PRIV_RW, 0x50000000UL, 0x50000FFFUL,
@@ -103,24 +126,63 @@ int main(int argc, char ** argv) {
       bus, "external", ICM_PRIV_RW, 0x4000D000UL, 0x4000DFFFUL,
       extMemReadCB, extMemWriteCB, 0
     );
+    icmMapExternalMemory(
+      bus, "external_uicr", ICM_PRIV_R, 0x10001000UL, 0x100013FFUL,
+      extMemReadUICRCB, extMemWriteUICRCB, 0
+    );
+    icmMapExternalMemory(
+      bus, "external_nvmc", ICM_PRIV_RW, 0x4001E000UL, 0x4001EFFFUL,
+      extMemReadNVMCCB, extMemWriteNVMCCB, 0
+    );
+    icmMapExternalMemory(
+      bus, "external_ficr", ICM_PRIV_R, 0x10000000UL, 0x100003FFUL,
+      extMemReadFICRCB, extMemWriteFICRCB, 0
+    );
+    icmMapExternalMemory(
+      bus, "external_clock", ICM_PRIV_RW, 0x40000000UL, 0x40000558UL,
+      extMemReadClockCB, extMemWriteClockCB, 0
+    );
+    icmMapExternalMemory(
+      bus, "external_rtc", ICM_PRIV_RW, 0x4000B000UL, 0x4000BFFFUL,
+      extMemReadRTCCB, extMemWriteRTCCB, 0
+    );
+    icmMapExternalMemory(
+      bus, "external_timer0", ICM_PRIV_RW, 0x40008000UL, 0x40008FFFUL,
+      extMemReadTimer0CB, extMemWriteTimer0CB, 0
+    );
     // connect memories to bus
     icmConnectMemoryToBus(bus, "mp1", memory1, 0x20000000); // ram
     icmConnectMemoryToBus(bus, "mp2", memory2, 0x00000000); // code
-    icmConnectMemoryToBus(bus, "mp3", memory3, 0x40000000); // AMLI, POWER, CLOCK, MPU, PU
+    //icmConnectMemoryToBus(bus, "mp3", memory3, 0x40000000); // AMLI, POWER, CLOCK, MPU, PU
     //icmConnectMemoryToBus(bus, "mp4", memory4, 0x40080000); // AMLI, POWER, CLOCK, MPU, PU
     //icmConnectMemoryToBus(bus, "mp_gpio", memory_gpio, 0x50000000);
     icmConnectMemoryToBus(bus, "mp_secret", memory_secret, 0xf0000fe0); // secret registers - https://devzone.nordicsemi.com/question/17943/secret-registers-at-memory-locations-0xf0000fe0-and-0xf0000fe8-of-the-nrf51822/
+    //icmConnectMemoryToBus(bus, "mp_nvmc", memory_nvmc, 0x4001E000);    
+    icmConnectMemoryToBus(bus, "mpradio", memory_radio, 0x40001ffc);
+    icmConnectMemoryToBus(bus, "mptemp", memory_temp, 0x4000cffc);
+    //icmConnectMemoryToBus(bus, "mptimer0", memory_timer0, 0x40008ffc);
+    icmConnectMemoryToBus(bus, "mpcrypto", memory_crypto, 0x4000effc);
+    icmConnectMemoryToBus(bus, "mpaar", memory_aar, 0x4000fffc);
+    //icmConnectMemoryToBus(bus, "mprtc", memory_rtc, 0x4000bffc);
+    icmConnectMemoryToBus(bus, "mpwdt", memory_wdt, 0x4001f508); // this is PPI actually
+    icmConnectMemoryToBus(bus, "mpppi", memory_ppi, 0x4001f550);
+    
     // show the bus connections
     icmPrintBusConnections(bus);
-    
 
     // load the processor object file
     //icmLoadProcessorMemory(processor, application, ICM_LOAD_PHYSICAL, True, True);
 
+    // init memory with FFs
+    int i, initmemory = 0xFFFFFFFF;
+    for (i = 0; i < 0x00040000 - 0x1000; i+=sizeof(int)) {
+      icmWriteProcessorMemory(processor, i, &initmemory, sizeof(int));
+    }
+    
     // Load Hex file into Simulator Memory
     char *dot = strrchr(application, '.');
     if (dot && !strcmp(dot, ".hex")) {      
-      if (loadHexFile(processor, (char*)application, False) != 0) {
+      if (load_hex_file(processor, (char*)application) != 0) {
           icmPrintf("Hex File Load of %s Failed\n", application);
           icmTerminate();
           return -1;
@@ -128,6 +190,12 @@ int main(int argc, char ** argv) {
     } else {
       icmLoadProcessorMemory(processor, application, ICM_LOAD_PHYSICAL, True, True);
     }
+    
+    unsigned int reg = 0xFFFFFFFF;
+    icmWriteReg(processor, "r4", &reg);
+    
+    unsigned int cafebabe = 0xcafebabe;
+    icmWriteProcessorMemory(processor, 0x2000011c, &cafebabe, 4);
     
     // Run the simulation
     //icmSimulatePlatform();
@@ -141,6 +209,8 @@ int main(int argc, char ** argv) {
 
 static void simulate_custom_platform(icmProcessorP processor) {
   Bool done = False;
+  unsigned long long cnt = 0;
+  //int result = 0, prev_result = 0;
   
   while(!done) {
 
@@ -155,14 +225,23 @@ static void simulate_custom_platform(icmProcessorP processor) {
 
       // execute one instruction
       done = (icmSimulate(processor, 1) != ICM_SR_SCHED);
+      /*result  = icmSimulate(processor, 1); // it could return "halt" on wfe?
+      if (result != prev_result) icmPrintf("************* new result %d", result);
+      prev_result = result;*/
       
       // exit if pc is specific value?
       if (!done && strstr(disassemble, "e7fe") != NULL) {
-        done = True;
+        //done = True;
       }
+      
+      unsigned int d;
+      icmReadProcessorMemory(processor, 0xe000e414, &d, 4);
+      icmPrintf("0xe000e41x is %x", d);
 
       // dump registers
       icmDumpRegisters(processor);
+      
+      if (cnt++ > 200000) break;
   } 
 }
 
@@ -220,3 +299,169 @@ static ICM_MEM_WRITE_FN(extMemWriteGPIOCB) {
     *(Int32*)value, (Int32)address, (int)bytes, (int)value, (int)userData
   );
 }
+
+static ICM_MEM_READ_FN(extMemReadUICRCB) {
+  if ((Int32)address == 0x10001014) {
+    *(Int32 *)value = 0xFFFFFFFF;
+    icmPrintf("WTF!!!");
+  }
+  if ((Int32)address == 0x10001000) {
+    *(Int32 *)value = 0xFFFFFFFF;
+    icmPrintf("FFS!!!");
+  }
+  icmPrintf(
+    "UICR MEMORY: Reading 0x%08x from 0x%08x\n",
+    *(Int32 *)value, (Int32)address
+  );
+}
+
+static ICM_MEM_WRITE_FN(extMemWriteUICRCB) {
+  icmPrintf(
+    "UICR MEMORY: Writing 0x%08x to 0x%08x (%d, %d, %d)\n",
+    *(Int32*)value, (Int32)address, (int)bytes, (int)value, (int)userData
+  );
+}
+
+static ICM_MEM_READ_FN(extMemReadFICRCB) {
+  if ((Int32)address == 0x1000002C) {
+    *(Int32 *)value = 0xFFFFFFFF;
+  }
+  icmPrintf(
+    "FICR MEMORY: Reading 0x%08x from 0x%08x\n",
+    *(Int32 *)value, (Int32)address
+  );
+}
+
+static ICM_MEM_WRITE_FN(extMemWriteFICRCB) {
+  icmPrintf(
+    "FICR MEMORY: Writing 0x%08x to 0x%08x (%d, %d, %d)\n",
+    *(Int32*)value, (Int32)address, (int)bytes, (int)value, (int)userData
+  );
+}
+
+static ICM_MEM_READ_FN(extMemReadNVMCCB) {
+  if ((Int32)address == 0x4001e400) {
+    *(Int32 *)value = 1;
+  }
+  icmPrintf(
+    "NVMC MEMORY: Reading 0x%08x from 0x%08x\n",
+    *(Int32 *)value, (Int32)address
+  );
+}
+
+static ICM_MEM_WRITE_FN(extMemWriteNVMCCB) {
+  icmPrintf(
+    "NVMC MEMORY: Writing 0x%08x to 0x%08x (%d, %d, %d)\n",
+    *(Int32*)value, (Int32)address, (int)bytes, (int)value, (int)userData
+  );
+}
+
+static ICM_MEM_READ_FN(extMemReadClockCB) {
+  if ((Int32)address == 0x40000104) { // EVENTS_HFCLKSTARTED
+    *(Int32 *)value = 1;
+  } else if ((Int32) address == 0x40000524) { // Power - RAM on/off
+    *(Int32 *)value = 3;
+  } else if ((Int32) address == 0x40000554) { // XTALFREQ
+    *(Int32 *)value = 0;
+  } else if ((Int32) address == 0x40000408) { // HFCLKRUN
+    *(Int32 *)value = 0;
+  } else if ((Int32) address == 0x40000414) { // LFCLKRUN
+    *(Int32 *)value = 0;
+  } else {
+    icmPrintf("********** Not handled mem location - power/clock/mpu");
+    icmTerminate();
+  }
+  icmPrintf(
+    "Clock MEMORY: Reading 0x%08x from 0x%08x\n",
+    *(Int32 *)value, (Int32)address
+  );
+}
+
+static ICM_MEM_WRITE_FN(extMemWriteClockCB) {
+  if ((Int32)address == 0x40000524) { // Power - RAM on/off
+    icmPrintf("Write to Power - RAM on/off");
+  } else if ((Int32)address == 0x40000514) { // Power - POFCON - power failure config
+    icmPrintf("Write to Power - POFCON - power failure config");
+  } else if ((Int32) address == 0x40000554) { // XTALFREQ
+    icmPrintf("Write to Clock - XTALFREQ");
+  } else if ((Int32)address == 0x4000000c) { // TASKS_LFCLKSTOP
+    icmPrintf("Write to Clock TASKS_LFCLKSTOP");
+  } else if ((Int32)address == 0x40000104) { // EVENTS_HFCLKSTARTED
+    icmPrintf("Write to Clock EVENTS_HFCLKSTARTED");
+  } else if ((Int32)address == 0x40000518) { // LFCLKSRC
+    icmPrintf("Write to Clock LFCLKSRC");
+  } else if ((Int32)address == 0x40000304) { // INTENSET
+    icmPrintf("Write to Clock INTENSET");
+  } else if ((Int32)address == 0x40000008) { // TASKS_LFCLKSTART 
+    icmPrintf("Write to Clock TASKS_LFCLKSTART ");   
+  } else if ((Int32)address == 0x40000308) { // INTENCLR
+    icmPrintf("Write to Clock INTENCLR");
+  } else if ((Int32)address == 0x40000108) { // LFCLKSRCCOPY  
+    icmPrintf("Write to Clock LFCLKSRCCOPY");   
+  } else {
+    icmPrintf("********** Not handled mem location for writing - power/clock/mpu");
+    icmTerminate();
+  }
+  
+  icmPrintf(
+    "Clock MEMORY: Writing 0x%08x to 0x%08x (%d, %d, %d)\n",
+    *(Int32*)value, (Int32)address, (int)bytes, (int)value, (int)userData
+  );
+}
+
+static ICM_MEM_READ_FN(extMemReadRTCCB) {
+  icmPrintf(
+    "RTC MEMORY: Reading 0x%08x from 0x%08x\n",
+    *(Int32 *)value, (Int32)address
+  );
+}
+
+static ICM_MEM_WRITE_FN(extMemWriteRTCCB) {
+  if ((Int32) address == 0x4000b308) { // INTENSET
+    icmPrintf("Write to RTC INTENSET");
+  }
+  if ((Int32) address == 0x4000bffc) { // POWER
+    icmPrintf("Write to RTC POWER");
+  }
+  
+  icmPrintf(
+    "RTC MEMORY: Writing 0x%08x to 0x%08x (%d, %d, %d)\n",
+    *(Int32*)value, (Int32)address, (int)bytes, (int)value, (int)userData
+  );
+}
+
+static ICM_MEM_READ_FN(extMemReadTimer0CB) {
+  if ((Int32)address == 0) { // hm?
+    //*(Int32 *)value = 1;
+  } else {
+    icmPrintf("********** Not handled mem location - timer0");
+    icmTerminate();
+  }
+  icmPrintf(
+    "Timer0 MEMORY: Reading 0x%08x from 0x%08x\n",
+    *(Int32 *)value, (Int32)address
+  );
+}
+
+static ICM_MEM_WRITE_FN(extMemWriteTimer0CB) {
+  if ((Int32)address == 0x40008FFC) { // Timer0 power
+    icmPrintf("Write to Timer0 power");
+  } else if ((Int32)address == 0x40008308) { // Timer0 INTENSET
+    icmPrintf("Write to Timer0 INTENSET");
+  } else if ((Int32)address == 0x40008540) { // Timer0 Capture/compare registers [0]
+    icmPrintf("Write to Timer0 CC[0]");
+  } else if ((Int32)address == 0x40008140) { // Timer0 EVENTS_COMPARE[0]
+    icmPrintf("Write to Timer0 EVENTS_COMPARE[0]");
+  } else if ((Int32)address == 0x40008200) { // Timer0 Shortcuts for timer
+    icmPrintf("Write to Timer0 - Shortcuts for timer SHORTS");
+  } else {
+    icmPrintf("********** Not handled mem location for writing - timer0");
+    icmTerminate();
+  }
+  
+  icmPrintf(
+    "Timer0 MEMORY: Writing 0x%08x to 0x%08x (%d, %d, %d)\n",
+    *(Int32*)value, (Int32)address, (int)bytes, (int)value, (int)userData
+  );
+}
+

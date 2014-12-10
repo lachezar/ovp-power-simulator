@@ -12,7 +12,7 @@
 static int switch_endianness(int data);
 static int load_data(icmProcessorP processor, int address, int data);
 
-int loadHexFile(icmProcessorP processor, char *fileName, Bool swap) {
+int load_hex_file(icmProcessorP processor, char *fileName) {
 
     FILE *fp;
     fp = fopen(fileName, "r");
@@ -24,10 +24,10 @@ int loadHexFile(icmProcessorP processor, char *fileName, Bool swap) {
 
     icmPrintf("\nLoading Hex file %s\n", fileName);
     
-    unsigned int byte_count, address_offset, record_type;
+    unsigned int byte_count, address_offset, record_type, base_address;
     while (!feof(fp) && fscanf(fp, ":%02x%04x%02x", &byte_count, &address_offset, &record_type) == 3) {
       
-      icmPrintf("\nbyte count %d address %x record type %d\n", byte_count, address_offset, record_type);
+      //icmPrintf("\nbyte count %d address %x record type %d\n", byte_count, address_offset, record_type);
       
       //icmPrintf("\nfp position %d\n", (int)ftell(fp));
       
@@ -40,16 +40,21 @@ int loadHexFile(icmProcessorP processor, char *fileName, Bool swap) {
         }
         
         return 0; // eof
+      
+      } else if (byte_count == 2 && record_type == 4) {
+        fscanf(fp, "%04x", &base_address);
+        base_address = (base_address << 16);
+        
+        icmPrintf("\nNew base address 0x%08x\n", base_address);
+        
       } else if (record_type == 0) {
         unsigned int data, i;
         for (i = 0; i < byte_count; i += sizeof(int)) {
           fscanf(fp, "%08x", &data);
           
-          if (True /* swap */) {  //byte swap
-            data = switch_endianness(data);
-          }
+          data = switch_endianness(data);
           
-          if (load_data(processor, address_offset + i, data) != 0) {
+          if (load_data(processor, base_address + address_offset + i, data) != 0) {
             return -1;
           }        
         }
@@ -110,6 +115,6 @@ static int load_data(icmProcessorP processor, int address, int data) {
       return -1;
   }
 
-  icmPrintf("  0x%08x <= 0x%08x\n", address, data);
+  //icmPrintf("  0x%08x <= 0x%08x\n", address, data);
   return 0;
 }
