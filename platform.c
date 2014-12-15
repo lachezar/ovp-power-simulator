@@ -39,8 +39,8 @@ static ICM_MEM_READ_FN(extMemReadNVMCCB);
 static ICM_MEM_WRITE_FN(extMemWriteNVMCCB);
 static ICM_MEM_READ_FN(extMemReadClockCB);
 static ICM_MEM_WRITE_FN(extMemWriteClockCB);
-static ICM_MEM_READ_FN(extMemReadRTCCB);
-static ICM_MEM_WRITE_FN(extMemWriteRTCCB);
+/*static ICM_MEM_READ_FN(extMemReadRTCCB);
+static ICM_MEM_WRITE_FN(extMemWriteRTCCB);*/
 /*static ICM_MEM_READ_FN(extMemReadTimer0CB);
 static ICM_MEM_WRITE_FN(extMemWriteTimer0CB);*/
 static ICM_MEM_READ_FN(extMemReadPPICB);
@@ -50,7 +50,7 @@ const char *processorType;
 const char *alternateVendor;
 const char *model;
 const char *semihosting;
-//icmNetP timer0Net, rtcNet;
+icmNetP timer0Net, rtcNet;
 
 //#define SIM_FLAGS (ICM_ATTR_TRACE | ICM_ATTR_TRACE_REGS_AFTER)
 #define SIM_FLAGS (ICM_ATTR_TRACE | ICM_ATTR_TRACE_ICOUNT)
@@ -81,7 +81,7 @@ int main(int argc, char ** argv) {
     icmAddStringAttr(icmAttr, "compatibility", "nopBKPT");
     icmAddStringAttr(icmAttr, "variant",       "Cortex-M3");
     icmAddStringAttr(icmAttr, "UAL",           "1"); 
-    icmAddDoubleAttr(icmAttr, "mips", 15.04);
+    //icmAddDoubleAttr(icmAttr, "mips", 15.04);
     icmAddUns32Attr(icmAttr, "override_numInterrupts", 32); // we use more interrupts than the default value of the CPU model
     icmAddStringAttr(icmAttr, "showHiddenRegs", "1");
     
@@ -95,7 +95,7 @@ int main(int argc, char ** argv) {
         32,                 // address bits
         model,              // model file
         "modelAttrs",       // morpher attributes
-        SIM_FLAGS,          // enable tracing or register values
+        0, //SIM_FLAGS,          // enable tracing or register values
         icmAttr,            // user-defined attributes
         semihosting,        // semi-hosting file
         "modelAttrs"        // semi-hosting attributes
@@ -146,10 +146,10 @@ int main(int argc, char ** argv) {
       bus, "external_clock", ICM_PRIV_RW, 0x40000000UL, 0x40000558UL,
       extMemReadClockCB, extMemWriteClockCB, 0
     );
-    icmMapExternalMemory(
+    /*icmMapExternalMemory(
       bus, "external_rtc", ICM_PRIV_RW, 0x4000B000UL, 0x4000BFFFUL,
       extMemReadRTCCB, extMemWriteRTCCB, 0
-    );
+    );*/
     /*icmMapExternalMemory(
       bus, "external_timer0", ICM_PRIV_RW, 0x40008000UL, 0x40008FFFUL,
       extMemReadTimer0CB, extMemWriteTimer0CB, 0
@@ -180,12 +180,28 @@ int main(int argc, char ** argv) {
     // instantiate the peripheral
     icmAttrListP icmAttrTimer = icmNewAttrList();
     icmPseP timer0 = icmNewPSE("timer", "pse/pse.pse", icmAttrTimer, NULL, NULL);
+    icmAttrListP icmAttrRTC = icmNewAttrList();
+    icmPseP rtc0 = icmNewPSE("rtc", "pse_rtc/pse.pse", icmAttrRTC, NULL, NULL);
     // connect the Timer slave port on the bus
     //define the address range it occupies
-    icmConnectPSEBus(timer0, bus, "TIMER", False, 0x40008000, 0x40008fff);
+    icmConnectPSEBus(timer0, bus, "TIMER", False, 0x40008000, 0x40008FFF);
+    icmConnectPSEBus(rtc0, bus, "RTC", False, 0x4000B000, 0x4000BFFF);
     
     // show the bus connections
     icmPrintBusConnections(bus);
+    
+    rtcNet = icmNewNet("rtc_irq");
+    timer0Net = icmNewNet("timer0_irq");
+
+    // connect the processor interrupt port to the net
+    icmConnectProcessorNet(processor, rtcNet, "int11", ICM_INPUT);
+    icmConnectProcessorNet(processor, timer0Net, "int8", ICM_INPUT);
+
+    // connect the RTC0 interrupt port to the net
+    icmConnectPSENet(rtc0, rtcNet, "rtc_irq", ICM_OUTPUT);
+    icmConnectPSENet(timer0, timer0Net, "timer_irq", ICM_OUTPUT);
+    
+    icmPrintNetConnections();
 
     // load the processor object file
     //icmLoadProcessorMemory(processor, application, ICM_LOAD_PHYSICAL, True, True);
@@ -208,12 +224,6 @@ int main(int argc, char ** argv) {
       icmLoadProcessorMemory(processor, application, ICM_LOAD_PHYSICAL, True, True);
     }
     
-     // interruption line on Timer0
-    /*timer0Net = icmNewNet("irq_timer0");
-    icmConnectProcessorNet(processor, timer0Net, "int8", ICM_INPUT); 
-    rtcNet = icmNewNet("irq_rtc");
-    icmConnectProcessorNet(processor, rtcNet, "int11", ICM_INPUT); */
-    
     unsigned int reg = 0xFFFFFFFF;
     icmWriteReg(processor, "r4", &reg);
     
@@ -231,43 +241,49 @@ int main(int argc, char ** argv) {
 }
 
 static void simulate_custom_platform(icmProcessorP processor) {
-  Bool done = False;
+  //Bool done = False;
   unsigned long long cnt = 0;
-  int result = 0, prev_result = 0;
+  //int result = 0;
+  //int prev_result = 0;
   
   //int mem = 5;
   //icmWriteProcessorMemory(processor, 0x40008000, &mem, sizeof(mem));
   //icmReadProcessorMemory(processor, 0x40008140, &mem, sizeof(mem));
   //icmReadProcessorMemory(processor, 0x40008ffc, &mem, sizeof(mem));
   
-  while(!done) {
+  double TIME_SLICE = 1.0 / 16000000.0;
+  icmTime myTime;
+  icmStopReason rtnVal = ICM_SR_SCHED;
+  for (myTime = TIME_SLICE; rtnVal == ICM_SR_SCHED || rtnVal == ICM_SR_HALT; myTime += TIME_SLICE) {
 
-      Uns32 currentPC = (Uns32)icmGetPC(processor);
-      const char* disassemble = icmDisassemble(processor, currentPC);
-      
-      // disassemble instruction at current PC
-      icmPrintf(
-          "0x%08x : %s\n", currentPC,
-          disassemble
-      );
+      //Uns32 currentPC = (Uns32)icmGetPC(processor);
+      //const char* disassemble = icmDisassemble(processor, currentPC);
 
       // execute one instruction
       //done = (icmSimulate(processor, 1) != ICM_SR_SCHED);
-      result  = icmSimulate(processor, 1); // it could return "halt" on wfe?
-      if (result != prev_result) icmPrintf("************* new result %d", result);
+      rtnVal = icmSimulate(processor, 1); // it could return "halt" on wfe?
+      /*if (result != prev_result) icmPrintf("************* new result %d", result);
       prev_result = result;
+      rtnVal = result;*/
       
+      icmAdvanceTime(myTime);
+      
+      //if (strstr(disassemble, "e7fe") == NULL && result == ICM_SR_SCHED) {
+        // disassemble instruction at current PC
+        //icmPrintf("0x%08x : %s\n", currentPC, disassemble);
+      //}
+            
       // exit if pc is specific value?
-      if (!done && strstr(disassemble, "e7fe") != NULL) {
+      //if (!done && strstr(disassemble, "e7fe") != NULL) {
         //done = True;
-      }
+      //}
       
       /*unsigned int d;
       icmReadProcessorMemory(processor, 0xe000e414, &d, 4);
       icmPrintf("0xe000e41x is %x", d);*/
 
       // dump registers
-      icmDumpRegisters(processor);
+      //icmDumpRegisters(processor);
       
       /*if (cnt == 24200) {
         icmWriteNet(timer0Net, 1); // interruption on Timer0
@@ -279,7 +295,7 @@ static void simulate_custom_platform(icmProcessorP processor) {
         icmPrintf("******RTC interruption");
       }*/
       
-      if (cnt++ > 25000) break;
+      if (cnt++ > 7*16000000) break;
   } 
 }
 
@@ -364,6 +380,39 @@ static ICM_MEM_READ_FN(extMemReadFICRCB) {
   if ((Int32)address == 0x1000002C) {
     *(Int32 *)value = 0xFFFFFFFF;
   }
+  if ((Int32)address == 0x100000a4) {
+    *(Int32 *)value = 0x1963137B;
+  }
+  if ((Int32)address == 0x100000a0) {
+    *(Int32 *)value = 0xFFFFFFFF;
+  }
+  if ((Int32)address == 0x100000a8) {
+    *(Int32 *)value = 0x472B354C;
+  }
+  if ((Int32)address == 0x10000080) {
+    *(Int32 *)value = 0x39938601;
+  }
+  if ((Int32)address == 0x10000084) {
+    *(Int32 *)value = 0xFC6B97AE;
+  }
+  if ((Int32)address == 0x10000088) {
+    *(Int32 *)value = 0xE7108AE1;
+  }
+  if ((Int32)address == 0x1000008C) {
+    *(Int32 *)value = 0x21E9F86C;
+  }
+  if ((Int32)address == 0x10000090) {
+    *(Int32 *)value = 0x6EA6F8C0;
+  }
+  if ((Int32)address == 0x10000094) {
+    *(Int32 *)value = 0x7C356886;
+  }
+  if ((Int32)address == 0x10000098) {
+    *(Int32 *)value = 0x93DDF20D;
+  }
+  if ((Int32)address == 0x1000009C) {
+    *(Int32 *)value = 0xBCBB9428;
+  }
   icmPrintf(
     "FICR MEMORY: Reading 0x%08x from 0x%08x\n",
     *(Int32 *)value, (Int32)address
@@ -447,7 +496,7 @@ static ICM_MEM_WRITE_FN(extMemWriteClockCB) {
   );
 }
 
-static ICM_MEM_READ_FN(extMemReadRTCCB) {
+/*static ICM_MEM_READ_FN(extMemReadRTCCB) {
   
   if ((Int32) address == 0x4000b504) { // COUNTER
     icmPrintf("Read from RTC COUNTER");
@@ -503,7 +552,7 @@ static ICM_MEM_WRITE_FN(extMemWriteRTCCB) {
     "RTC MEMORY: Writing 0x%08x to 0x%08x (%d, %d, %d)\n",
     *(Int32*)value, (Int32)address, (int)bytes, (int)value, (int)userData
   );
-}
+}*/
 
 /*static ICM_MEM_READ_FN(extMemReadTimer0CB) {
   if ((Int32)address == 0) { // hm?
