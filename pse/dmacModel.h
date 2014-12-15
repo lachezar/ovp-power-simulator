@@ -33,11 +33,11 @@ typedef struct {
   uint32_t  TASKS_COUNT;                       /*!< Increment Timer (In counter mode).                                    */
   uint32_t  TASKS_CLEAR;                       /*!< Clear timer.                                                          */
   uint32_t  TASKS_SHUTDOWN;                    /*!< Shutdown timer.                                                       */
-  uint32_t  TASKS_CAPTURE0;                  /*!< Capture Timer value to CC[n] registers.                               */
+  uint32_t  TASKS_CAPTURE0;                    /*!< Capture Timer value to CC[n] registers.                               */
   uint32_t  TASKS_CAPTURE1;
   uint32_t  TASKS_CAPTURE2;
   uint32_t  TASKS_CAPTURE3;
-  uint32_t  EVENTS_COMPARE0;                 /*!< Compare event on CC[n] match.                                         */
+  uint32_t  EVENTS_COMPARE0;                   /*!< Compare event on CC[n] match.                                         */
   uint32_t  EVENTS_COMPARE1;
   uint32_t  EVENTS_COMPARE2;
   uint32_t  EVENTS_COMPARE3;
@@ -48,7 +48,7 @@ typedef struct {
   uint32_t  BITMODE;                           /*!< Sets timer behaviour.                                                 */
   uint32_t  PRESCALER;                         /*!< 4-bit prescaler to source clock frequency (max value 9). Source
                                                          clock frequency is divided by 2^SCALE.                                */
-  uint32_t  CC0;                             /*!< Capture/compare registers.                                            */
+  uint32_t  CC0;                              /*!< Capture/compare registers.                                            */
   uint32_t  CC1;
   uint32_t  CC2;
   uint32_t  CC3;
@@ -59,6 +59,7 @@ typedef struct {
 
 PPM_CONSTRUCTOR_CB(init);
 PPM_CONSTRUCTOR_CB(periphConstructor);
+void loop();
 
 void userMainLoop(void);
 void userReset(Uns32 v);
@@ -71,6 +72,8 @@ extern Uns32 diag;
 extern timerRegs regs;
 
 void* timer_window;
+
+bhmEventHandle start_eh;
 
 //
 // prototypes

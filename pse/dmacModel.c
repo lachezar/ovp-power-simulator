@@ -123,6 +123,8 @@ int main(int argc, char **argv) {
     //bhmPrintf("\n$$$3");
     //userInit();
     init();
+    
+    loop();
     //bhmPrintf("\n$$$4");
     return 0;
 }
