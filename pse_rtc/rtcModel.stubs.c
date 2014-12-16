@@ -256,7 +256,7 @@ void loop() {
     
     update_irq_lines();
 
-    bhmPrintf("\n\n\n$$$$$ RTC loop counter = %d, cc1 = %d, %d, %d, %d \n\n\n", counter, regs.CC1, (regs.EVTEN & (1 << 17)), skip_cc_match, (irq & (1 << 17)));
+    bhmPrintf("\n\n\n$$$$$ RTC loop counter = %d, cc1 = %d, %d, %d, %d, cc0 = %d, compare0 = %d \n\n\n", counter, regs.CC1, (regs.EVTEN & (1 << 17)), skip_cc_match, (irq & (1 << 17)), regs.CC0, regs.EVENTS_COMPARE0);
     
     counter = (counter + 1) & 0xFFFFFF;
     

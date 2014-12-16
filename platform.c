@@ -23,6 +23,7 @@
 
 #include "icm/icmCpuManager.h"
 #include "hex_loader.h"
+#include "platform.h"
 
 // Function prototype and variables used
 static void simulate_custom_platform(icmProcessorP processor);
@@ -50,10 +51,23 @@ const char *processorType;
 const char *alternateVendor;
 const char *model;
 const char *semihosting;
-icmNetP timer0Net, rtcNet;
+icmNetP timer0Net, rtcNet, rngNet;
 
-//#define SIM_FLAGS (ICM_ATTR_TRACE | ICM_ATTR_TRACE_REGS_AFTER)
+int should_start_rng_int = 0;
+int should_stop_rng_int = 0;
+int rng_started = 0;
+int rng_irq_enabled = 0;
+
+static NRF_PPI_Type ppi;
+
+
+#define TRACE 1
+
+#ifdef TRACE
 #define SIM_FLAGS (ICM_ATTR_TRACE | ICM_ATTR_TRACE_ICOUNT)
+#else 
+#define SIM_FLAGS 0
+#endif
 
 //
 // Main simulation routine
@@ -95,7 +109,7 @@ int main(int argc, char ** argv) {
         32,                 // address bits
         model,              // model file
         "modelAttrs",       // morpher attributes
-        0, //SIM_FLAGS,          // enable tracing or register values
+        SIM_FLAGS,          // enable tracing or register values
         icmAttr,            // user-defined attributes
         semihosting,        // semi-hosting file
         "modelAttrs"        // semi-hosting attributes
@@ -113,11 +127,11 @@ int main(int argc, char ** argv) {
     //icmMemoryP memory3 = icmNewMemory("mem3", ICM_PRIV_RWX, 0x40001000 - 0x40000000 - 1);
     //icmMemoryP memory4 = icmNewMemory("mem4", ICM_PRIV_RWX, 0xFFFFFFFF - 0x40080000);
     //icmMemoryP memory_nvmc = icmNewMemory("mem_nvmc", ICM_PRIV_RWX, 0x4001F000 - 0x4001E000 - 1);
-    icmMemoryP memory_radio = icmNewMemory("mem_radio", ICM_PRIV_RWX, 4);
-    icmMemoryP memory_temp = icmNewMemory("mem_temp", ICM_PRIV_RWX, 4);
+    icmMemoryP memory_radio = icmNewMemory("mem_radio", ICM_PRIV_RWX, 3);
+    icmMemoryP memory_temp = icmNewMemory("mem_temp", ICM_PRIV_RWX, 3);
     //icmMemoryP memory_timer0 = icmNewMemory("mem_timer0", ICM_PRIV_RWX, 4);
-    icmMemoryP memory_crypto = icmNewMemory("mem_crypto", ICM_PRIV_RWX, 4);
-    icmMemoryP memory_aar = icmNewMemory("mem_aar", ICM_PRIV_RWX, 4);
+    icmMemoryP memory_crypto = icmNewMemory("mem_crypto", ICM_PRIV_RWX, 3);
+    icmMemoryP memory_aar = icmNewMemory("mem_aar", ICM_PRIV_RWX, 3);
     //icmMemoryP memory_rtc = icmNewMemory("mem_rtc", ICM_PRIV_RWX, 4);
     //icmMemoryP memory_wdt = icmNewMemory("mem_wdt", ICM_PRIV_RWX, 4);
     //icmMemoryP memory_ppi = icmNewMemory("mem_ppi", ICM_PRIV_RWX, 1024);
@@ -126,7 +140,7 @@ int main(int argc, char ** argv) {
       bus, "external_gpio", ICM_PRIV_RW, 0x50000000UL, 0x50000FFFUL,
       extMemReadGPIOCB, extMemWriteGPIOCB, 0
     );
-    icmMapExternalMemory(
+    icmMapExternalMemory( // rng
       bus, "external", ICM_PRIV_RW, 0x4000D000UL, 0x4000DFFFUL,
       extMemReadCB, extMemWriteCB, 0
     );
@@ -191,7 +205,7 @@ int main(int argc, char ** argv) {
     icmPrintBusConnections(bus);
     
     rtcNet = icmNewNet("rtc_irq");
-    timer0Net = icmNewNet("timer0_irq");
+    timer0Net = icmNewNet("timer_irq");
 
     // connect the processor interrupt port to the net
     icmConnectProcessorNet(processor, rtcNet, "int11", ICM_INPUT);
@@ -200,6 +214,9 @@ int main(int argc, char ** argv) {
     // connect the RTC0 interrupt port to the net
     icmConnectPSENet(rtc0, rtcNet, "rtc_irq", ICM_OUTPUT);
     icmConnectPSENet(timer0, timer0Net, "timer_irq", ICM_OUTPUT);
+    
+    rngNet = icmNewNet("rng_irq");
+    icmConnectProcessorNet(processor, rngNet, "int13", ICM_INPUT);
     
     icmPrintNetConnections();
 
@@ -240,6 +257,47 @@ int main(int argc, char ** argv) {
     return 0;
 }
 
+void start_pending_irqs() {
+  if (should_start_rng_int != 0) {
+    icmPrintf("****RNG IRQ SIGNAL STARTED\n");
+    icmWriteNet(rngNet, 1);
+    should_start_rng_int = 0;
+    should_stop_rng_int = 5; // no idea why 5!
+  }
+}
+
+void stop_pending_irqs() {
+  if (should_stop_rng_int > 1) {
+    should_stop_rng_int--;
+  } else if (should_stop_rng_int != 0) {
+    icmWriteNet(rngNet, 0);
+    should_stop_rng_int = 0;
+    icmPrintf("****RNG IRQ SIGNAL STOPPED\n");
+  }
+}
+
+inline void run_ppi(icmProcessorP processor, NRF_PPI_Type* ppi) {
+  int i;
+  Uns32 data;
+  const Uns32 signal = 1;
+  const Uns32 stop_signal = 0;
+  
+  for (i = 0; i < 16; i++) {
+    PPI_CH_Type ppich = ppi->CH[i];
+
+    if (ppich.EEP != 0 && ppich.TEP != 0 && (ppi->CHEN & (1 << i)) != 0) {
+      // get data from address ppich.EEP    
+      icmReadProcessorMemory(processor, ppich.EEP, &data, 4);
+      if (data != 0) {
+        // write 1 to ppich.TEP address
+        icmWriteProcessorMemory(processor, ppich.TEP, &signal, 4);
+        icmPrintf("****PPI CONNECTION DONE! EEP 0x%08x -> TEP 0x%08x\n", ppich.EEP, ppich.TEP);
+        icmWriteProcessorMemory(processor, ppich.EEP, &stop_signal, 4);
+      }
+    }
+  }
+}
+
 static void simulate_custom_platform(icmProcessorP processor) {
   //Bool done = False;
   unsigned long long cnt = 0;
@@ -255,10 +313,14 @@ static void simulate_custom_platform(icmProcessorP processor) {
   icmTime myTime;
   icmStopReason rtnVal = ICM_SR_SCHED;
   for (myTime = TIME_SLICE; rtnVal == ICM_SR_SCHED || rtnVal == ICM_SR_HALT; myTime += TIME_SLICE) {
+    
+      start_pending_irqs();
 
-      //Uns32 currentPC = (Uns32)icmGetPC(processor);
-      //const char* disassemble = icmDisassemble(processor, currentPC);
-
+      #ifdef TRACE
+      Uns32 currentPC = (Uns32)icmGetPC(processor);
+      const char* disassemble = icmDisassemble(processor, currentPC);
+      #endif
+      
       // execute one instruction
       //done = (icmSimulate(processor, 1) != ICM_SR_SCHED);
       rtnVal = icmSimulate(processor, 1); // it could return "halt" on wfe?
@@ -268,10 +330,12 @@ static void simulate_custom_platform(icmProcessorP processor) {
       
       icmAdvanceTime(myTime);
       
-      //if (strstr(disassemble, "e7fe") == NULL && result == ICM_SR_SCHED) {
+      #ifdef TRACE
+      if (strstr(disassemble, "e7fe") == NULL && rtnVal == ICM_SR_SCHED) {
         // disassemble instruction at current PC
-        //icmPrintf("0x%08x : %s\n", currentPC, disassemble);
-      //}
+        icmPrintf("0x%08x : %s\n", currentPC, disassemble);
+      }
+      #endif
             
       // exit if pc is specific value?
       //if (!done && strstr(disassemble, "e7fe") != NULL) {
@@ -282,8 +346,10 @@ static void simulate_custom_platform(icmProcessorP processor) {
       icmReadProcessorMemory(processor, 0xe000e414, &d, 4);
       icmPrintf("0xe000e41x is %x", d);*/
 
+      #ifdef TRACE
       // dump registers
-      //icmDumpRegisters(processor);
+      icmDumpRegisters(processor);
+      #endif
       
       /*if (cnt == 24200) {
         icmWriteNet(timer0Net, 1); // interruption on Timer0
@@ -295,7 +361,11 @@ static void simulate_custom_platform(icmProcessorP processor) {
         icmPrintf("******RTC interruption");
       }*/
       
-      if (cnt++ > 7*16000000) break;
+      stop_pending_irqs();
+     
+      run_ppi(processor, &ppi);
+      
+      if (cnt++ > 7*16000000 / 1000) break;
   } 
 }
 
@@ -321,21 +391,51 @@ static ICM_MEM_READ_FN(extMemReadCB) {
   Int32 data;
   if ((Int32)address == 0x4000d100) {
     data = 1;
-  } else {
+  } else if ((Int32)address == 0x4000d508) {
     data = rand();
+    icmPrintf("\nRNG RAND GENERATED and READ - %d\n", data);
+  } else {
+    icmPrintf("********** Not handled mem location - RNG - 0x%08x\n", (Int32)address);
+    icmTerminate();
   }
   
   *(Int32 *)value = data;
   
   icmPrintf(
-    "EXTERNAL MEMORY: Reading 0x%08x from 0x%08x\n",
+    "RNG MEMORY: Reading 0x%08x from 0x%08x\n",
     data, (Int32)address
   );
 }
 
 static ICM_MEM_WRITE_FN(extMemWriteCB) {
+  if ((Int32)address == 0x4000d000) {
+    rng_started = *(Int32*)value;
+    icmPrintf("\nRNG START - %d\n", *(Int32*)value);
+    if (rng_irq_enabled != 0 && rng_started != 0) {
+      should_start_rng_int = 1;
+      icmPrintf("\nRNG SHOULD START IRQ\n");
+    }
+  } else if ((Int32)address == 0x4000d304) {
+    rng_irq_enabled = *(Int32*)value;
+    icmPrintf("\nRNG IRQ SET - %d\n", *(Int32*)value);
+  } else if ((Int32)address == 0x4000d100) {
+    if (*(Int32*)value == 0 && rng_irq_enabled != 0 && rng_started != 0) {
+      should_start_rng_int = 1;
+      icmPrintf("\nRNG SHOULD START IRQ\n");
+    }
+    icmPrintf("\nRNG VALUE READY - %d\n", *(Int32*)value);
+  } else if ((Int32)address == 0x4000dffc) {
+    icmPrintf("\nRNG POWER - %d\n", *(Int32*)value);
+  } else if ((Int32)address == 0x4000d004) {
+    rng_started = 0;
+    icmPrintf("\nRNG STOP - %d\n", *(Int32*)value);
+  } else {
+    icmPrintf("********** Not handled mem location writing - RNG - 0x%08x\n", (Int32)address);
+    icmTerminate();
+  }
+  
   icmPrintf(
-    "EXTERNAL MEMORY: Writing 0x%08x to 0x%08x (%d, %d, %d)\n",
+    "RNG MEMORY: Writing 0x%08x to 0x%08x (%d, %d, %d)\n",
     *(Int32*)value, (Int32)address, (int)bytes, (int)value, (int)userData
   );
 }
@@ -358,10 +458,12 @@ static ICM_MEM_READ_FN(extMemReadUICRCB) {
   if ((Int32)address == 0x10001014) {
     *(Int32 *)value = 0xFFFFFFFF;
     icmPrintf("WTF!!!");
-  }
-  if ((Int32)address == 0x10001000) {
+  } else if ((Int32)address == 0x10001000) {
     *(Int32 *)value = 0xFFFFFFFF;
     icmPrintf("FFS!!!");
+  } else {
+    icmPrintf("********** Not handled mem location - UICR");
+    icmTerminate();
   }
   icmPrintf(
     "UICR MEMORY: Reading 0x%08x from 0x%08x\n",
@@ -379,39 +481,31 @@ static ICM_MEM_WRITE_FN(extMemWriteUICRCB) {
 static ICM_MEM_READ_FN(extMemReadFICRCB) {
   if ((Int32)address == 0x1000002C) {
     *(Int32 *)value = 0xFFFFFFFF;
-  }
-  if ((Int32)address == 0x100000a4) {
+  } else if ((Int32)address == 0x100000a4) {
     *(Int32 *)value = 0x1963137B;
-  }
-  if ((Int32)address == 0x100000a0) {
+  } else if ((Int32)address == 0x100000a0) {
     *(Int32 *)value = 0xFFFFFFFF;
-  }
-  if ((Int32)address == 0x100000a8) {
+  } else if ((Int32)address == 0x100000a8) {
     *(Int32 *)value = 0x472B354C;
-  }
-  if ((Int32)address == 0x10000080) {
+  } else if ((Int32)address == 0x10000080) {
     *(Int32 *)value = 0x39938601;
-  }
-  if ((Int32)address == 0x10000084) {
+  } else if ((Int32)address == 0x10000084) {
     *(Int32 *)value = 0xFC6B97AE;
-  }
-  if ((Int32)address == 0x10000088) {
+  } else if ((Int32)address == 0x10000088) {
     *(Int32 *)value = 0xE7108AE1;
-  }
-  if ((Int32)address == 0x1000008C) {
+  } else if ((Int32)address == 0x1000008C) {
     *(Int32 *)value = 0x21E9F86C;
-  }
-  if ((Int32)address == 0x10000090) {
+  } else if ((Int32)address == 0x10000090) {
     *(Int32 *)value = 0x6EA6F8C0;
-  }
-  if ((Int32)address == 0x10000094) {
+  } else if ((Int32)address == 0x10000094) {
     *(Int32 *)value = 0x7C356886;
-  }
-  if ((Int32)address == 0x10000098) {
+  } else if ((Int32)address == 0x10000098) {
     *(Int32 *)value = 0x93DDF20D;
-  }
-  if ((Int32)address == 0x1000009C) {
+  } else if ((Int32)address == 0x1000009C) {
     *(Int32 *)value = 0xBCBB9428;
+  } else {
+    icmPrintf("********** Not handled mem location - FICR");
+    icmTerminate();
   }
   icmPrintf(
     "FICR MEMORY: Reading 0x%08x from 0x%08x\n",
@@ -454,8 +548,10 @@ static ICM_MEM_READ_FN(extMemReadClockCB) {
     *(Int32 *)value = 0;
   } else if ((Int32) address == 0x40000414) { // LFCLKRUN
     *(Int32 *)value = 0;
+  } else if ((Int32)address == 0x40000100) { // HFCLKSTARTED  
+    *(Int32 *)value = 1;
   } else {
-    icmPrintf("********** Not handled mem location - power/clock/mpu");
+    icmPrintf("********** Not handled mem location - power/clock/mpu - 0x%08x\n", (Int32)address);
     icmTerminate();
   }
   icmPrintf(
@@ -484,9 +580,13 @@ static ICM_MEM_WRITE_FN(extMemWriteClockCB) {
   } else if ((Int32)address == 0x40000308) { // INTENCLR
     icmPrintf("Write to Clock INTENCLR");
   } else if ((Int32)address == 0x40000108) { // LFCLKSRCCOPY  
-    icmPrintf("Write to Clock LFCLKSRCCOPY");   
+    icmPrintf("Write to Clock LFCLKSRCCOPY");
+  } else if ((Int32)address == 0x40000100) { // HFCLKSTARTED  
+    icmPrintf("Write to Clock HFCLKSTARTED");
+  } else if ((Int32)address == 0x40000000) { // HFCLKSTART
+    icmPrintf("Write to Clock HFCLKSTART");
   } else {
-    icmPrintf("********** Not handled mem location for writing - power/clock/mpu");
+    icmPrintf("********** Not handled mem location for writing - power/clock/mpu - 0x%08x\n", (Int32)address);
     icmTerminate();
   }
   
@@ -600,9 +700,9 @@ static ICM_MEM_WRITE_FN(extMemWriteTimer0CB) {
 
 static ICM_MEM_READ_FN(extMemReadPPICB) {
   if ((Int32)address == 0x4001f800) { // PPI Channel group config CHG[0]
-    *(Int32 *)value = 0;
+    *(Int32 *)value = ppi.CHG[0];
   } else if ((Int32)address == 0x4001f804) { // PPI Channel group config CHG[1]
-    *(Int32 *)value = 0;
+    *(Int32 *)value = ppi.CHG[1];
   } else {
     icmPrintf("********** Not handled mem location - PPI");
     icmTerminate();
@@ -614,50 +714,73 @@ static ICM_MEM_READ_FN(extMemReadPPICB) {
 }
 
 static ICM_MEM_WRITE_FN(extMemWritePPICB) {
-  if ((Int32)address == 0x4001f508) { // PPI Channel enable set
-    icmPrintf("Write to PPI CHENSET");
-  } else if ((Int32)address == 0x4001f550) { // PPI CH[2] Channel event end-point
-    icmPrintf("Write to PPI CH[2] EEP");
-  } else if ((Int32)address == 0x4001f554) { // PPI CH[2] Channel task end-point
-    icmPrintf("Write to PPI CH[2] TEP");
-  } else if ((Int32)address == 0x4001f558) { // PPI CH[3] Channel event end-point
-    icmPrintf("Write to PPI CH[3] EEP");
-  } else if ((Int32)address == 0x4001f55c) { // PPI CH[3] Channel task end-point
-    icmPrintf("Write to PPI CH[3] TEP");
-  } else if ((Int32)address == 0x4001f560) { // PPI CH[4] Channel event end-point
-    icmPrintf("Write to PPI CH[4] EEP");
-  } else if ((Int32)address == 0x4001f564) { // PPI CH[4] Channel task end-point
-    icmPrintf("Write to PPI CH[4] TEP");
-  } else if ((Int32)address == 0x4001f568) { // PPI CH[5] Channel event end-point
-    icmPrintf("Write to PPI CH[5] EEP");
-  } else if ((Int32)address == 0x4001f56c) { // PPI CH[5] Channel task end-point
-    icmPrintf("Write to PPI CH[5] TEP");
-  } else if ((Int32)address == 0x4001f570) { // PPI CH[6] Channel event end-point
-    icmPrintf("Write to PPI CH[6] EEP");
-  } else if ((Int32)address == 0x4001f574) { // PPI CH[6] Channel task end-point
-    icmPrintf("Write to PPI CH[6] TEP");
-  } else if ((Int32)address == 0x4001f578) { // PPI CH[7] Channel event end-point
-    icmPrintf("Write to PPI CH[7] EEP");
-  } else if ((Int32)address == 0x4001f57c) { // PPI CH[7] Channel task end-point
-    icmPrintf("Write to PPI CH[7] TEP");
-  } else if ((Int32)address == 0x4001f580) { // PPI CH[8] Channel event end-point
-    icmPrintf("Write to PPI CH[8] EEP");
-  } else if ((Int32)address == 0x4001f584) { // PPI CH[8] Channel task end-point
-    icmPrintf("Write to PPI CH[8] TEP");
-  } else if ((Int32)address == 0x4001f588) { // PPI CH[9] Channel event end-point
-    icmPrintf("Write to PPI CH[9] EEP");
-  } else if ((Int32)address == 0x4001f58c) { // PPI CH[9] Channel task end-point
-    icmPrintf("Write to PPI CH[9] TEP");
+  if ((Int32)address == 0x4001f504) { // PPI Channel enable set
+    ppi.CHENSET = *(Int32*)value;
+    ppi.CHEN |= *(Int32*)value;
+    icmPrintf("Write to PPI CHENSET ");
+  } else if ((Int32)address == 0x4001f550) { // PPI CH[8] Channel event end-point
+    ppi.CH[8].EEP = (*(Int32*)value);
+    icmPrintf("Write to PPI CH[8] EEP ");
+  } else if ((Int32)address == 0x4001f554) { // PPI CH[8] Channel task end-point
+    ppi.CH[8].TEP = (*(Int32*)value);
+    icmPrintf("Write to PPI CH[8] TEP ");
+  } else if ((Int32)address == 0x4001f558) { // PPI CH[9] Channel event end-point
+    ppi.CH[9].EEP = (*(Int32*)value);
+    icmPrintf("Write to PPI CH[9] EEP ");
+  } else if ((Int32)address == 0x4001f55c) { // PPI CH[9] Channel task end-point
+    ppi.CH[9].TEP = (*(Int32*)value);
+    icmPrintf("Write to PPI CH[9] TEP ");
+  } else if ((Int32)address == 0x4001f560) { // PPI CH[10] Channel event end-point
+    ppi.CH[10].EEP = (*(Int32*)value);
+    icmPrintf("Write to PPI CH[10] EEP ");
+  } else if ((Int32)address == 0x4001f564) { // PPI CH[10] Channel task end-point
+    ppi.CH[10].TEP = (*(Int32*)value);
+    icmPrintf("Write to PPI CH[10] TEP ");
+  } else if ((Int32)address == 0x4001f568) { // PPI CH[11] Channel event end-point
+    ppi.CH[11].EEP = (*(Int32*)value);
+    icmPrintf("Write to PPI CH[11] EEP ");
+  } else if ((Int32)address == 0x4001f56c) { // PPI CH[11] Channel task end-point
+    ppi.CH[11].TEP = (*(Int32*)value);
+    icmPrintf("Write to PPI CH[11] TEP ");
+  } else if ((Int32)address == 0x4001f570) { // PPI CH[12] Channel event end-point
+    ppi.CH[12].EEP = (*(Int32*)value);
+    icmPrintf("Write to PPI CH[12] EEP ");
+  } else if ((Int32)address == 0x4001f574) { // PPI CH[12] Channel task end-point
+    ppi.CH[12].TEP = (*(Int32*)value);
+    icmPrintf("Write to PPI CH[12] TEP ");
+  } else if ((Int32)address == 0x4001f578) { // PPI CH[13] Channel event end-point
+    ppi.CH[13].EEP = (*(Int32*)value);
+    icmPrintf("Write to PPI CH[13] EEP ");
+  } else if ((Int32)address == 0x4001f57c) { // PPI CH[13] Channel task end-point
+    ppi.CH[13].TEP = (*(Int32*)value);
+    icmPrintf("Write to PPI CH[13] TEP ");
+  } else if ((Int32)address == 0x4001f580) { // PPI CH[14] Channel event end-point
+    ppi.CH[14].EEP = (*(Int32*)value);
+    icmPrintf("Write to PPI CH[14] EEP ");
+  } else if ((Int32)address == 0x4001f584) { // PPI CH[14] Channel task end-point
+    ppi.CH[14].TEP = (*(Int32*)value);
+    icmPrintf("Write to PPI CH[14] TEP ");
+  } else if ((Int32)address == 0x4001f588) { // PPI CH[15] Channel event end-point
+    ppi.CH[15].EEP = (*(Int32*)value);
+    icmPrintf("Write to PPI CH[15] EEP ");
+  } else if ((Int32)address == 0x4001f58c) { // PPI CH[15] Channel task end-point
+    ppi.CH[15].TEP = (*(Int32*)value);
+    icmPrintf("Write to PPI CH[15] TEP ");
   } else if ((Int32)address == 0x4001f800) { // PPI Channel group configuration CHG[0]
-    icmPrintf("Write to PPI CHG[0]");
+    ppi.CHG[0] = (*(Int32*)value);
+    icmPrintf("Write to PPI CHG[0] ");
   } else if ((Int32)address == 0x4001f804) { // PPI Channel group configuration CHG[1]
-    icmPrintf("Write to PPI CHG[1]");
+    ppi.CHG[1] = (*(Int32*)value);
+    icmPrintf("Write to PPI CHG[1] ");
   } else if ((Int32)address == 0x4001f808) { // PPI Channel group configuration CHG[2]
-    icmPrintf("Write to PPI CHG[2]");
+    ppi.CHG[2] = (*(Int32*)value);
+    icmPrintf("Write to PPI CHG[2] ");
   } else if ((Int32)address == 0x4001f80c) { // PPI Channel group configuration CHG[3]
-    icmPrintf("Write to PPI CHG[3]");
-  } else if ((Int32)address == 0x4001f504) { // PPI Channel enable
-    icmPrintf("Write to PPI CHEN");    
+    ppi.CHG[3] = (*(Int32*)value);
+    icmPrintf("Write to PPI CHG[3] ");
+  } else if ((Int32)address == 0x4001f508) { // PPI Channel enable
+    ppi.CHEN &= ~(*(Int32*)value);
+    icmPrintf("Write to PPI CHENCLR ");    
   } else {
     icmPrintf("********** Not handled mem location for writing - PPI");
     icmTerminate();

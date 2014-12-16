@@ -31,6 +31,7 @@
 static Uns32 ticks = 0;
 static Uns32 irq = 0;
 static Uns32 should_trigger_irq = 0;
+static Uns32 is_started = 0;
 
 //
 // View any 32-bit register
@@ -56,16 +57,14 @@ PPM_WRITE_CB(regWr32) {
     *(Uns32*)user = data;
     bhmPrintf("\n$$$ Timer Write to 0x%08x (user - 0x%08x, data - 0x%08x, window - 0x%08x, pwr - %d) \n", (Uns32)addr - (Uns32)timer_window, (Uns32)user, data, (Uns32)timer_window, regs.POWER);
     
-    if ((Uns32*)user == &regs.TASKS_START) {
-      bhmPrintf("TIMER START! (to be done), data = %d\n", data);
-    }
-    
-    if ((Uns32*)user == &regs.TASKS_START && data != 0) {
+    if ((Uns32*)user == &regs.TASKS_START && data != 0 && is_started == 0) {
+      is_started = 1;
       regs.TASKS_STOP = 0;
       bhmTriggerEvent(start_eh);
       bhmPrintf("TIMER START! (to be done)");
     }
-    if ((Uns32*)user == &regs.TASKS_STOP && data != 0) {
+    if ((Uns32*)user == &regs.TASKS_STOP && data != 0 && is_started != 0) {
+      is_started = 0;
       regs.TASKS_START = 0;
       bhmPrintf("TIMER STOP! (to be done)");
     }
@@ -176,12 +175,12 @@ void trigger_irq() {
 
 void update_irq_lines() {
   if (should_trigger_irq == 1) {
-    bhmPrintf("\n$$$$$ RTC IRQ ON \n");
+    bhmPrintf("\n$$$$$ TIMER IRQ ON \n");
     ppmWriteNet(irq_handle, 1);
     should_trigger_irq = 0;
     bhmWaitDelay(1.0);
     ppmWriteNet(irq_handle, 0);
-    bhmPrintf("\n$$$$$ RTC IRQ OFF \n");
+    bhmPrintf("\n$$$$$ TIMER IRQ OFF \n");
   }
 }
 
