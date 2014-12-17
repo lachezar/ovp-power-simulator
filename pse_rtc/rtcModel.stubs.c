@@ -47,7 +47,13 @@ PPM_VIEW_CB(viewReg32) {
 //
 PPM_READ_CB(regRd32) {
     //return byteSwap(*(Uns32*)user);
-    bhmPrintf("\n$$$ RTC Read from 0x%08x = 0x%08x\n", (Uns32)addr - (Uns32)rtc_window, *(Uns32*)user);
+    if ((Uns32*)user == &regs.COUNTER) {
+      
+      *(Uns32*)user = counter;
+      bhmPrintf("\n!!!READ COUNTER REGISTER - %d\n", *(Uns32*)user);
+      return counter;
+    }
+    //bhmPrintf("\n$$$ RTC Read from 0x%08x = 0x%08x\n", (Uns32)addr - (Uns32)rtc_window, *(Uns32*)user);
     return *(Uns32*)user;
 }
 
@@ -105,7 +111,7 @@ PPM_WRITE_CB(regWr32) {
     }
     if ((Uns32*)user == &regs.EVTENSET) {
       regs.EVTEN = regs.EVTEN | data;
-      bhmPrintf("RTC EVTENSET!");
+      bhmPrintf("RTC EVTENSET! - 0x%08x\n", regs.EVTEN);
     }
     if ((Uns32*)user == &regs.EVTENCLR) {
       /*
@@ -120,6 +126,7 @@ PPM_WRITE_CB(regWr32) {
     if ((Uns32*)user == &regs.INTENSET) {
       irq = irq | data;
       regs.INTENSET = irq;
+      regs.INTENCLR = irq;
       bhmPrintf("RTC INTENSET! irq - %d\n", irq);
     }
     if ((Uns32*)user == &regs.INTENCLR) {
@@ -131,6 +138,7 @@ PPM_WRITE_CB(regWr32) {
        */
       irq = irq & (~data);
       regs.INTENSET = irq;
+      regs.INTENCLR = irq;
       bhmPrintf("RTC INTENCLR!");
     }
 
@@ -154,7 +162,6 @@ PPM_WRITE_CB(regWr32) {
     if ((Uns32*)user == &regs.CC3) {
       bhmPrintf("CC3 RTC write!");
     }
-    
 }
 
 PPM_CONSTRUCTOR_CB(init) {
@@ -225,6 +232,7 @@ void loop() {
     }
     
     if ((regs.EVTEN & (1 << 16)) != 0 && counter == regs.CC0 && skip_cc_match == 0) {
+      bhmPrintf("\n\n\n$$ RTC match cc0 \n\n\n");
       regs.EVENTS_COMPARE0 = 1;
       if ((irq & (1 << 16)) != 0) {
         trigger_irq();
@@ -256,7 +264,7 @@ void loop() {
     
     update_irq_lines();
 
-    bhmPrintf("\n\n\n$$$$$ RTC loop counter = %d, cc1 = %d, %d, %d, %d, cc0 = %d, compare0 = %d \n\n\n", counter, regs.CC1, (regs.EVTEN & (1 << 17)), skip_cc_match, (irq & (1 << 17)), regs.CC0, regs.EVENTS_COMPARE0);
+    bhmPrintf("\n\n\n$$$$$ RTC loop counter = %d, cc1 = %d, evten = 0x%08x, %d, irq = 0x%08x, cc0 = %d, compare0 = %d, compare1 = %d \n\n\n", counter, regs.CC1, regs.EVTEN, skip_cc_match, irq, regs.CC0, regs.EVENTS_COMPARE0, regs.EVENTS_COMPARE1);
     
     counter = (counter + 1) & 0xFFFFFF;
     

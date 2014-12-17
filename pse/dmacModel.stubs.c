@@ -47,6 +47,11 @@ PPM_VIEW_CB(viewReg32) {
 PPM_READ_CB(regRd32) {
     //return byteSwap(*(Uns32*)user);
     bhmPrintf("\n$$$ Timer Read from 0x%08x\n", *(Uns32*)addr);
+    if ((Uns32*)user == &regs.INTENSET || (Uns32*)user == &regs.INTENCLR) {
+      bhmPrintf("TIMER READ INTENCLR or INTENSET! - 0x%08x\n", irq);
+      *(Uns32*)user = irq;
+      return irq;
+    }
     return *(Uns32*)user;
 }
 
@@ -178,7 +183,7 @@ void update_irq_lines() {
     bhmPrintf("\n$$$$$ TIMER IRQ ON \n");
     ppmWriteNet(irq_handle, 1);
     should_trigger_irq = 0;
-    bhmWaitDelay(1.0);
+    bhmWaitDelay(5.0);
     ppmWriteNet(irq_handle, 0);
     bhmPrintf("\n$$$$$ TIMER IRQ OFF \n");
   }
@@ -263,7 +268,7 @@ void loop() {
       }
     }
     
-    bhmPrintf("\n\n\n$$$$$ loop ticks = %d \n\n\n", ticks);
+    bhmPrintf("\n\n\n$$$$$ loop ticks = %d, cc0 = %d, cc1 = %d \n\n\n", ticks, regs.CC0, regs.CC1);
     
     update_irq_lines();
     
