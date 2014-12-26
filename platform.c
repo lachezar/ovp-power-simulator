@@ -28,6 +28,7 @@
 // Function prototype and variables used
 static void simulate_custom_platform(icmProcessorP processor);
 static void parseArgs(int argc, char ** argv);
+static NET_WRITE_FN(intPPINetWritten);
 static ICM_MEM_READ_FN(extMemReadCB);
 static ICM_MEM_WRITE_FN(extMemWriteCB);
 static ICM_MEM_READ_FN(extMemReadGPIOCB);
@@ -46,14 +47,12 @@ static ICM_MEM_WRITE_FN(extMemWriteRTCCB);*/
 static ICM_MEM_WRITE_FN(extMemWriteTimer0CB);*/
 static ICM_MEM_READ_FN(extMemReadPPICB);
 static ICM_MEM_WRITE_FN(extMemWritePPICB);
-static ICM_MEM_READ_FN(extMemReadRadioCB);
-static ICM_MEM_WRITE_FN(extMemWriteRadioCB);
 const char *application;
 const char *processorType;
 const char *alternateVendor;
 const char *model;
 const char *semihosting;
-icmNetP timer0Net, rtcNet, rngNet;
+icmNetP timer0Net, rtcNet, rngNet, radioNet, radioPPINet, rtcPPINet, timer0PPINet;
 
 int should_start_rng_int = 0;
 int should_stop_rng_int = 0;
@@ -63,6 +62,8 @@ int rng_irq_enabled = 0;
 static NRF_PPI_Type ppi;
 static int ppi_queue[16];
 static int ppi_queue_size = 0;
+static Uns32 oldPPIValue;
+static int should_run_ppi = 0;
 
 
 //#define TRACE 1
@@ -73,17 +74,10 @@ static int ppi_queue_size = 0;
 #define SIM_FLAGS 0
 #endif
 
-static ICM_MEM_WATCH_FN(watchWriteCB) {
-  icmPrintf("\nWATCHPOINT '%s': Writing to 0x%08x : Finish Simulation\n",(Uns8 *)userData,(Int32)address);
-  
-}
-
 //
 // Main simulation routine
 //
 int main(int argc, char ** argv) {
-  
-    srand(time(NULL));
 
     // read the arguments and set application, processorType and alternateVendor
     parseArgs(argc, argv);
@@ -136,7 +130,6 @@ int main(int argc, char ** argv) {
     //icmMemoryP memory3 = icmNewMemory("mem3", ICM_PRIV_RWX, 0x40001000 - 0x40000000 - 1);
     //icmMemoryP memory4 = icmNewMemory("mem4", ICM_PRIV_RWX, 0xFFFFFFFF - 0x40080000);
     //icmMemoryP memory_nvmc = icmNewMemory("mem_nvmc", ICM_PRIV_RWX, 0x4001F000 - 0x4001E000 - 1);
-    icmMemoryP memory_radio = icmNewMemory("mem_radio", ICM_PRIV_RWX, 3);
     icmMemoryP memory_temp = icmNewMemory("mem_temp", ICM_PRIV_RWX, 3);
     //icmMemoryP memory_timer0 = icmNewMemory("mem_timer0", ICM_PRIV_RWX, 4);
     icmMemoryP memory_crypto = icmNewMemory("mem_crypto", ICM_PRIV_RWX, 3);
@@ -144,8 +137,9 @@ int main(int argc, char ** argv) {
     //icmMemoryP memory_rtc = icmNewMemory("mem_rtc", ICM_PRIV_RWX, 4);
     //icmMemoryP memory_wdt = icmNewMemory("mem_wdt", ICM_PRIV_RWX, 4);
     //icmMemoryP memory_ppi = icmNewMemory("mem_ppi", ICM_PRIV_RWX, 1024);
-    icmMemoryP memory_ccm = icmNewMemory("mem_ccm", ICM_PRIV_RWX, 0xfff);
-
+    icmMemoryP memory_ccm = icmNewMemory("mem_ccm", ICM_PRIV_RWX, 3);
+    icmMemoryP memory_ccm2 = icmNewMemory("mem_ccm2", ICM_PRIV_RWX, 3);
+    
     icmMapExternalMemory(
       bus, "external_gpio", ICM_PRIV_RW, 0x50000000UL, 0x50000FFFUL,
       extMemReadGPIOCB, extMemWriteGPIOCB, 0
@@ -182,10 +176,7 @@ int main(int argc, char ** argv) {
       bus, "external_ppi", ICM_PRIV_RW, 0x4001F000UL, 0x4001FFFFUL,
       extMemReadPPICB, extMemWritePPICB, 0
     );
-    icmMapExternalMemory(
-      bus, "external_radio", ICM_PRIV_RW, 0x40001000UL, 0x40001FFFUL,
-      extMemReadRadioCB, extMemWriteRadioCB, 0
-    );
+    
     // connect memories to bus
     icmConnectMemoryToBus(bus, "mp1", memory1, 0x20000000); // ram
     icmConnectMemoryToBus(bus, "mp2", memory2, 0x00000000); // code
@@ -194,12 +185,12 @@ int main(int argc, char ** argv) {
     //icmConnectMemoryToBus(bus, "mp_gpio", memory_gpio, 0x50000000);
     icmConnectMemoryToBus(bus, "mp_secret", memory_secret, 0xf0000fe0); // secret registers - https://devzone.nordicsemi.com/question/17943/secret-registers-at-memory-locations-0xf0000fe0-and-0xf0000fe8-of-the-nrf51822/
     //icmConnectMemoryToBus(bus, "mp_nvmc", memory_nvmc, 0x4001E000);    
-    icmConnectMemoryToBus(bus, "mpradio", memory_radio, 0x40001ffc);
     icmConnectMemoryToBus(bus, "mptemp", memory_temp, 0x4000cffc);
     //icmConnectMemoryToBus(bus, "mptimer0", memory_timer0, 0x40008ffc);
     icmConnectMemoryToBus(bus, "mpcrypto", memory_crypto, 0x4000effc);
     //icmConnectMemoryToBus(bus, "mpaar", memory_aar, 0x4000fffc);
-    icmConnectMemoryToBus(bus, "mpccm", memory_ccm, 0x4000f000);
+    icmConnectMemoryToBus(bus, "mpccm", memory_ccm, 0x4000fffc);
+    icmConnectMemoryToBus(bus, "mpccm2", memory_ccm2, 0x4000f500);
     //icmConnectMemoryToBus(bus, "mprtc", memory_rtc, 0x4000bffc);
     //icmConnectMemoryToBus(bus, "mpwdt", memory_wdt, 0x4001f508); // this is PPI actually
     //icmConnectMemoryToBus(bus, "mpppi", memory_ppi, 0x4001f550);
@@ -211,31 +202,45 @@ int main(int argc, char ** argv) {
     icmPseP timer0 = icmNewPSE("timer", "pse/pse.pse", icmAttrTimer, NULL, NULL);
     icmAttrListP icmAttrRTC = icmNewAttrList();
     icmPseP rtc0 = icmNewPSE("rtc", "pse_rtc/pse.pse", icmAttrRTC, NULL, NULL);
+    icmAttrListP icmAttrRadio = icmNewAttrList();
+    icmPseP radio = icmNewPSE("radio", "pse_radio/pse.pse", icmAttrRadio, NULL, NULL);
     // connect the Timer slave port on the bus
     //define the address range it occupies
     icmConnectPSEBus(timer0, bus, "TIMER", False, 0x40008000, 0x40008FFF);
     icmConnectPSEBus(rtc0, bus, "RTC", False, 0x4000B000, 0x4000BFFF);
-    
+    icmConnectPSEBus(radio, bus, "RADIO", False, 0x40001000, 0x40001FFF);
+       
     // show the bus connections
     icmPrintBusConnections(bus);
     
     rtcNet = icmNewNet("rtc_irq");
     timer0Net = icmNewNet("timer_irq");
+    radioNet = icmNewNet("radio_irq");
+    rtcPPINet = icmNewNet("rtc_ppi");
+    timer0PPINet = icmNewNet("timer0_ppi");
+    radioPPINet = icmNewNet("radio_ppi");
 
     // connect the processor interrupt port to the net
     icmConnectProcessorNet(processor, rtcNet, "int11", ICM_INPUT);
     icmConnectProcessorNet(processor, timer0Net, "int8", ICM_INPUT);
+    icmConnectProcessorNet(processor, radioNet, "int1", ICM_INPUT);
 
     // connect the RTC0 interrupt port to the net
     icmConnectPSENet(rtc0, rtcNet, "rtc_irq", ICM_OUTPUT);
     icmConnectPSENet(timer0, timer0Net, "timer_irq", ICM_OUTPUT);
+    icmConnectPSENet(radio, radioNet, "radio_irq", ICM_OUTPUT);
+    icmConnectPSENet(rtc0, rtcPPINet, "rtc_ppi", ICM_OUTPUT);
+    icmConnectPSENet(timer0, timer0PPINet, "timer0_ppi", ICM_OUTPUT);
+    icmConnectPSENet(radio, radioPPINet, "radio_ppi", ICM_OUTPUT);
+    
+    icmAddNetCallback(rtcPPINet, intPPINetWritten, &oldPPIValue);
+    icmAddNetCallback(timer0PPINet, intPPINetWritten, &oldPPIValue);
+    icmAddNetCallback(radioPPINet, intPPINetWritten, &oldPPIValue);
     
     rngNet = icmNewNet("rng_irq");
     icmConnectProcessorNet(processor, rngNet, "int13", ICM_INPUT);
     
     icmPrintNetConnections();
-    
-    icmAddWriteCallback(processor, 0x4000b140, 0x4000b150, watchWriteCB, 0);
 
     // load the processor object file
     //icmLoadProcessorMemory(processor, application, ICM_LOAD_PHYSICAL, True, True);
@@ -263,6 +268,7 @@ int main(int argc, char ** argv) {
     
     unsigned int cafebabe = 0xcafebabe;
     icmWriteProcessorMemory(processor, 0x2000011c, &cafebabe, 4);
+    
         
     // Run the simulation
     //icmSimulatePlatform();
@@ -297,11 +303,12 @@ inline void run_ppi(icmProcessorP processor, NRF_PPI_Type* ppi) {
   int i, j;
   Uns32 data;
   const Uns32 signal = 1;
-  const Uns32 stop_signal = 0;
+  //const Uns32 stop_signal = 0;
   
   //icmPrintf("PPI->CHEN 0x%08x\n", ppi->CHEN);
   
   for (i = 0; i < ppi_queue_size; i++) {
+    //icmPrintf("ppi_queue[i] 0x%08x\n", ppi_queue[i]);
     j = ppi_queue[i];
     PPI_CH_Type ppich = ppi->CH[j];
 
@@ -313,7 +320,7 @@ inline void run_ppi(icmProcessorP processor, NRF_PPI_Type* ppi) {
         // write 1 to ppich.TEP address
         icmWriteProcessorMemory(processor, ppich.TEP, &signal, 4);
         icmPrintf("****PPI CONNECTION DONE! EEP 0x%08x -> TEP 0x%08x\n", ppich.EEP, ppich.TEP);
-        icmWriteProcessorMemory(processor, ppich.EEP, &stop_signal, 4);
+        //icmWriteProcessorMemory(processor, ppich.EEP, &stop_signal, 4);
       }
     }
   }
@@ -321,7 +328,8 @@ inline void run_ppi(icmProcessorP processor, NRF_PPI_Type* ppi) {
 
 static void simulate_custom_platform(icmProcessorP processor) {
   //Bool done = False;
-  unsigned long long cnt = 0;
+  //unsigned long long cnt = 0;
+  //unsigned int print = 0;
   //int result = 0;
   //int prev_result = 0;
   
@@ -330,6 +338,7 @@ static void simulate_custom_platform(icmProcessorP processor) {
   //icmReadProcessorMemory(processor, 0x40008140, &mem, sizeof(mem));
   //icmReadProcessorMemory(processor, 0x40008ffc, &mem, sizeof(mem));
   
+  Uns32 currentPC = 0;
   double TIME_SLICE = 1.0 / 16000000.0;
   icmTime myTime;
   icmStopReason rtnVal = ICM_SR_SCHED;
@@ -342,12 +351,40 @@ static void simulate_custom_platform(icmProcessorP processor) {
       const char* disassemble = icmDisassemble(processor, currentPC);
       #endif
       
+      currentPC = (Uns32)icmGetPC(processor);
+      if (rtnVal == ICM_SR_SCHED) {
+        icmPrintf("%f -> 0x%08x\n", (double)myTime, currentPC);
+      }
+      
+      /*if (currentPC == 0x13020) {
+        print = 1;
+        icmPrintf(">>>>>>>>>>>>>>>>>>>>\n");
+        Uns32 q;
+        Uns32 i;
+        for (i = 0; i < 0x8000; i++) {
+          icmReadProcessorMemory(processor, 0x20000000 + i*sizeof(Uns32), &q, sizeof(Uns32));
+          icmPrintf("0x%08x\n", q);
+        }
+        icmPrintf(">>>>>>>>>>>>>>>>>>>>\n");
+      }*/
+      /*if (rtnVal == ICM_SR_SCHED && (cnt % 10 == 0 || print == 1)) {
+        const char* disassemble = icmDisassemble(processor, currentPC);
+        icmPrintf(" : %s\n", disassemble);
+        icmDumpRegisters(processor);
+      }*/
       // execute one instruction
       //done = (icmSimulate(processor, 1) != ICM_SR_SCHED);
       rtnVal = icmSimulate(processor, 1); // it could return "halt" on wfe?
+      if (rtnVal != ICM_SR_SCHED) {
+        myTime += 15.0 * TIME_SLICE;
+      }
       /*if (result != prev_result) icmPrintf("************* new result %d", result);
       prev_result = result;
       rtnVal = result;*/
+      
+      /*if (cnt % 10 == 0 || print == 1) {
+        icmPrintf("cpu status %d\n", rtnVal);
+      }*/
       
       icmAdvanceTime(myTime);
       
@@ -385,11 +422,14 @@ static void simulate_custom_platform(icmProcessorP processor) {
       
       stop_pending_irqs();
      
-      if (cnt % 10 == 0) {
+      if (/*cnt % 10 == 0 ||*/ should_run_ppi != 0) {
+        should_run_ppi = 0;
         run_ppi(processor, &ppi);
       }
       
-      if (cnt++ > 16000000 / 10) break;
+      //if (cnt++ > 16000000 / 2) break;
+      //cnt++;
+      if (myTime > 0.5) break;
   } 
 }
 
@@ -409,10 +449,21 @@ static void parseArgs(int argc, char ** argv) {
     }*/
 }
 
+static NET_WRITE_FN(intPPINetWritten) {
+  /*Uns32 *old = userData;
+  if (value != *old) {
+    icmPrintf("Net changed to %d\n", value);
+    *old = value;
+  }*/
+  icmPrintf("@@@ Trigger PPI Nets with value = %d\n", value);
+  should_run_ppi = value;
+  
+}
+
 int mdata = 0;
 
 static ICM_MEM_READ_FN(extMemReadCB) {
-  Int32 data;
+  Int32 data = 0;
   if ((Int32)address == 0x4000d100) {
     data = 1;
   } else if ((Int32)address == 0x4000d508) {
@@ -836,7 +887,7 @@ static ICM_MEM_WRITE_FN(extMemWritePPICB) {
   } else if ((Int32)address == 0x4001f80c) { // PPI Channel group configuration CHG[3]
     ppi.CHG[3] = (*(Int32*)value);
     icmPrintf("Write to PPI CHG[3] ");
-  } else if ((Int32)address == 0x4001f508) { // PPI Channel enable
+  } else if ((Int32)address == 0x4001f508) { // PPI Channel clear
     ppi.CHEN &= ~(*(Int32*)value);
     sync_ppi_queue(ppi.CHEN);
     icmPrintf("Write to PPI CHENCLR ");    
@@ -847,20 +898,6 @@ static ICM_MEM_WRITE_FN(extMemWritePPICB) {
   
   icmPrintf(
     "PPI MEMORY: Writing 0x%08x to 0x%08x (%d, %d, %d)\n",
-    *(Int32*)value, (Int32)address, (int)bytes, (int)value, (int)userData
-  );
-}
-
-static ICM_MEM_READ_FN(extMemReadRadioCB) {
-  icmPrintf(
-    "RADIO MEMORY: Reading 0x%08x from 0x%08x\n",
-    *(Int32 *)value, (Int32)address
-  );
-}
-
-static ICM_MEM_WRITE_FN(extMemWriteRadioCB) {
-  icmPrintf(
-    "RADIO MEMORY: Writing 0x%08x to 0x%08x (%d, %d, %d)\n",
-    *(Int32*)value, (Int32)address, (int)bytes, (int)value, (int)userData
+    (*(Int32*)value), (Int32)address, (int)bytes, (int)value, (int)userData
   );
 }

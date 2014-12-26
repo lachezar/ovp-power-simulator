@@ -66,6 +66,7 @@ void userReset(Uns32 v);
 
 // Bus and net port declarations
 extern ppmNetHandle      irq_handle;
+extern ppmNetHandle      timer0_notification_handle;
 
 extern Uns32 diag;
 

@@ -46,7 +46,7 @@ PPM_VIEW_CB(viewReg32) {
 //
 PPM_READ_CB(regRd32) {
     //return byteSwap(*(Uns32*)user);
-    bhmPrintf("\n$$$ Timer Read from 0x%08x\n", *(Uns32*)addr);
+    bhmPrintf("\n$$$ Timer Read from 0x%08x\n", (Uns32)addr - (Uns32)timer_window);
     if ((Uns32*)user == &regs.INTENSET || (Uns32*)user == &regs.INTENCLR) {
       bhmPrintf("TIMER READ INTENCLR or INTENSET! - 0x%08x\n", irq);
       *(Uns32*)user = irq;
@@ -72,6 +72,13 @@ PPM_WRITE_CB(regWr32) {
       is_started = 0;
       regs.TASKS_START = 0;
       bhmPrintf("TIMER STOP! (to be done)");
+    }
+    if ((Uns32*)user == &regs.POWER && data == 0) {
+      is_started = 0;
+      regs.TASKS_STOP = 1;
+      regs.TASKS_START = 0;
+      ticks = 0;
+      bhmPrintf("TIMER POWER DOWN!\n");
     }
     if ((Uns32*)user == &regs.MODE && data == 1) {
       bhmPrintf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! COUNTER MODE NOT SUPPORTED YET!");
@@ -107,15 +114,19 @@ PPM_WRITE_CB(regWr32) {
     
     if ((Uns32*)user == &regs.EVENTS_COMPARE0) {
       bhmPrintf("COMPARE0 TIMER write!");
+      ppmWriteNet(timer0_notification_handle, 8);
     }
     if ((Uns32*)user == &regs.EVENTS_COMPARE1) {
       bhmPrintf("COMPARE1 TIMER write!");
+      ppmWriteNet(timer0_notification_handle, 8);
     }
     if ((Uns32*)user == &regs.EVENTS_COMPARE2) {
       bhmPrintf("COMPARE2 TIMER write!");
+      ppmWriteNet(timer0_notification_handle, 8);
     }
     if ((Uns32*)user == &regs.EVENTS_COMPARE3) {
       bhmPrintf("COMPARE3 TIMER write!");
+      ppmWriteNet(timer0_notification_handle, 8);
     }
     
     if ((Uns32*)user == &regs.SHORTS) {
@@ -208,7 +219,9 @@ void loop() {
     }
     
     if (ticks == regs.CC0) {
+      bhmPrintf("\n\n$$$$$ Timer CC0 match\n");
       regs.EVENTS_COMPARE0 = 1;
+      ppmWriteNet(timer0_notification_handle, 0x8);
       if ((regs.SHORTS & 0x1) != 0) {
         ticks = 0;
       }
@@ -223,7 +236,9 @@ void loop() {
       }
     }
     if (ticks == regs.CC1) {
+      bhmPrintf("\n\n$$$$$ Timer CC1 match\n");
       regs.EVENTS_COMPARE1 = 1;
+      ppmWriteNet(timer0_notification_handle, 0x8);
       if ((regs.SHORTS & 0x2) != 0) {
         ticks = 0;
       }
@@ -238,7 +253,9 @@ void loop() {
       }
     }
     if (ticks == regs.CC2) {
+      bhmPrintf("\n\n$$$$$ Timer CC2 match\n");
       regs.EVENTS_COMPARE2 = 1;
+      ppmWriteNet(timer0_notification_handle, 0x8);
       if ((regs.SHORTS & 0x4) != 0) {
         ticks = 0;
       }
@@ -253,7 +270,9 @@ void loop() {
       }
     }
     if (ticks == regs.CC3) {
+      bhmPrintf("\n\n$$$$$ Timer CC3 match irq = 0x%08x, shorts = 0x%08x\n", irq, regs.SHORTS);
       regs.EVENTS_COMPARE3 = 1;
+      ppmWriteNet(timer0_notification_handle, 0x8);
       if ((regs.SHORTS & 0x8) != 0) {
         ticks = 0;
       }
@@ -268,7 +287,7 @@ void loop() {
       }
     }
     
-    bhmPrintf("\n\n\n$$$$$ loop ticks = %d, cc0 = %d, cc1 = %d \n\n\n", ticks, regs.CC0, regs.CC1);
+    //bhmPrintf("\n\n\n$$$$$ loop ticks = %d, cc0 = %d, cc1 = %d \n\n\n", ticks, regs.CC0, regs.CC1);
     
     update_irq_lines();
     

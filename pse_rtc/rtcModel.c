@@ -35,6 +35,7 @@ Uns32 diag = 0;
 // netPort handles
 //
 ppmNetHandle irq_handle;
+ppmNetHandle rtc_notification_handle;
 
 static void createRegisters(void *w) { // w = window?
 
@@ -97,6 +98,7 @@ static void busPortConnections(void) {
 //
 static void netPortConnections(void) {
     irq_handle  = ppmOpenNetPort("rtc_irq");
+    rtc_notification_handle  = ppmOpenNetPort("rtc_ppi");
 }
 
 //

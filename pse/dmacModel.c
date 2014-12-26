@@ -35,6 +35,7 @@ Uns32 diag = 0;
 // netPort handles
 //
 ppmNetHandle irq_handle;
+ppmNetHandle timer0_notification_handle;
 
 static void createRegisters(void *w) { // w = window?
 
@@ -96,6 +97,7 @@ static void busPortConnections(void) {
 //
 static void netPortConnections(void) {
     irq_handle  = ppmOpenNetPort("timer_irq");
+    timer0_notification_handle  = ppmOpenNetPort("timer0_ppi");
 }
 
 //

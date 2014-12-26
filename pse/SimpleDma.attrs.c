@@ -30,6 +30,12 @@ static ppmNetPort netPorts[] = {
         .mustBeConnected = 0,
         .description     = 0
     },
+    {
+        .name            = "timer0_ppi",
+        .type            = PPM_OUTPUT_PORT,
+        .mustBeConnected = 0,
+        .description     = 0
+    },
     { 0 }
 };
 

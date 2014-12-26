@@ -53,7 +53,7 @@ PPM_READ_CB(regRd32) {
       bhmPrintf("\n!!!READ COUNTER REGISTER - %d\n", *(Uns32*)user);
       return counter;
     }
-    //bhmPrintf("\n$$$ RTC Read from 0x%08x = 0x%08x\n", (Uns32)addr - (Uns32)rtc_window, *(Uns32*)user);
+    //bhmPrintf("\n$$$ RTC Read from 0x%08x = 0x%08x (counter 0x%08x)\n", (Uns32)addr - (Uns32)rtc_window, *(Uns32*)user, counter);
     return *(Uns32*)user;
 }
 
@@ -88,22 +88,28 @@ PPM_WRITE_CB(regWr32) {
     
     if ((Uns32*)user == &regs.EVENTS_TICK) {
       bhmPrintf("RTC tick event write!");
+      ppmWriteNet(rtc_notification_handle, 0xB);
     }
     if ((Uns32*)user == &regs.EVENTS_OVRFLW) {
       bhmPrintf("RTC overflow event write!");
+      ppmWriteNet(rtc_notification_handle, 0xB);
     }
     
     if ((Uns32*)user == &regs.EVENTS_COMPARE0) {
       bhmPrintf("COMPARE0 RTC write!");
+      ppmWriteNet(rtc_notification_handle, 0xB);
     }
     if ((Uns32*)user == &regs.EVENTS_COMPARE1) {
       bhmPrintf("COMPARE1 RTC write!");
+      ppmWriteNet(rtc_notification_handle, 0xB);
     }
     if ((Uns32*)user == &regs.EVENTS_COMPARE2) {
       bhmPrintf("COMPARE2 RTC write!");
+      ppmWriteNet(rtc_notification_handle, 0xB);
     }
     if ((Uns32*)user == &regs.EVENTS_COMPARE3) {
       bhmPrintf("COMPARE3 RTC write!");
+      ppmWriteNet(rtc_notification_handle, 0xB);
     }
     
     if ((Uns32*)user == &regs.EVTEN) {
@@ -204,7 +210,7 @@ void loop() {
   
   while (1) {
     
-    bhmPrintf("RTC new cycle!");
+    //bhmPrintf("RTC new cycle!");
     
     while (regs.TASKS_STOP != 0 && regs.TASKS_START == 0) {
       bhmWaitEvent(start_eh);
@@ -225,6 +231,7 @@ void loop() {
     
     if (is_overflow == 1 && counter == 0 && skip_cc_match == 0) {
       regs.EVENTS_OVRFLW = 1;
+      ppmWriteNet(rtc_notification_handle, 0xB);
       if ((irq & 2) != 0) {
         trigger_irq();
       }
@@ -234,6 +241,7 @@ void loop() {
     if ((regs.EVTEN & (1 << 16)) != 0 && counter == regs.CC0 && skip_cc_match == 0) {
       bhmPrintf("\n\n\n$$ RTC match cc0 \n\n\n");
       regs.EVENTS_COMPARE0 = 1;
+      ppmWriteNet(rtc_notification_handle, 0xB);
       if ((irq & (1 << 16)) != 0) {
         trigger_irq();
       }
@@ -241,6 +249,7 @@ void loop() {
     
     if ((regs.EVTEN & (1 << 17)) != 0 && counter == regs.CC1 && skip_cc_match == 0) {
       regs.EVENTS_COMPARE1 = 1;
+      ppmWriteNet(rtc_notification_handle, 0xB);
       bhmPrintf("\n\n\n$$ RTC match cc1 \n\n\n");
       if ((irq & (1 << 17)) != 0) {
         bhmPrintf("\n\n\n$$ RTC match cc1 IRQ \n\n\n");
@@ -250,6 +259,7 @@ void loop() {
 
     if ((regs.EVTEN & (1 << 18)) != 0 && counter == regs.CC2 && skip_cc_match == 0) {
       regs.EVENTS_COMPARE2 = 1;
+      ppmWriteNet(rtc_notification_handle, 0xB);
       if ((irq & (1 << 18)) != 0) {
         trigger_irq();
       }
@@ -257,6 +267,7 @@ void loop() {
     
     if ((regs.EVTEN & (1 << 19)) != 0 && counter == regs.CC3 && skip_cc_match == 0) {
       regs.EVENTS_COMPARE3 = 1;
+      ppmWriteNet(rtc_notification_handle, 0xB);
       if ((irq & (1 << 19)) != 0) {
         trigger_irq();
       }
@@ -264,7 +275,7 @@ void loop() {
     
     update_irq_lines();
 
-    bhmPrintf("\n\n\n$$$$$ RTC loop counter = %d, cc1 = %d, evten = 0x%08x, %d, irq = 0x%08x, cc0 = %d, compare0 = %d, compare1 = %d \n\n\n", counter, regs.CC1, regs.EVTEN, skip_cc_match, irq, regs.CC0, regs.EVENTS_COMPARE0, regs.EVENTS_COMPARE1);
+    //bhmPrintf("\n\n\n$$$$$ RTC loop counter = %d, cc1 = %d, evten = 0x%08x, %d, irq = 0x%08x, cc0 = %d, compare0 = %d, compare1 = %d \n\n\n", counter, regs.CC1, regs.EVTEN, skip_cc_match, irq, regs.CC0, regs.EVENTS_COMPARE0, regs.EVENTS_COMPARE1);
     
     counter = (counter + 1) & 0xFFFFFF;
     
