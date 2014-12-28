@@ -407,7 +407,7 @@ static void simulate_custom_platform(icmProcessorP processor) {
       rtnVal = icmSimulate(processor, 1); // it could return "halt" on wfe?
       if (rtnVal != ICM_SR_SCHED) {
         //myTime += 15.0 * TIME_SLICE;
-        tick += 31;
+        tick += 31; // to 127?
       } else if (cycles > 1) {
         //icmPrintf("cycles: %f\n", ((double)(cycles-1)));
         //myTime += (((double)(cycles-1)) * TIME_SLICE);
@@ -486,17 +486,11 @@ static void parseArgs(int argc, char ** argv) {
 }
 
 static NET_WRITE_FN(intPPINetWritten) {
-  /*Uns32 *old = userData;
-  if (value != *old) {
-    icmPrintf("Net changed to %d\n", value);
-    *old = value;
-  }*/
   icmPrintf("@@@ Trigger PPI Nets with value = %d\n", value);
   should_run_ppi = value;
-  
 }
 
-int mdata = 0;
+// @TODO move RNG to external file
 
 static ICM_MEM_READ_FN(extMemReadCB) {
   Int32 data = 0;
@@ -590,48 +584,31 @@ static ICM_MEM_WRITE_FN(extMemWriteUICRCB) {
 }
 
 static ICM_MEM_READ_FN(extMemReadFICRCB) {
+  
+  const Int32 segment1[] = { // starts in 0x10000080
+    0x39938601, 0xFC6B97AE, 0xE7108AE1, 0x21E9F86C, // encryption root?
+    0x6EA6F8C0, 0x7C356886, 0x93DDF20D, 0xBCBB9428, // identity root?
+    0xFFFFFFFF, 0x1963137B, 0x472B354C, 0xFFFFFFF6  // DEVICEADDRTYPE, DEVICEADDR{2}, UNDOCUMENTED
+  };
+  
+  const Int32 segment2[] = { // starts in 0x100000EC
+    0x7D005600, 0x5C000050, 0x680E8804, 0x00726424, 0x824B423E // UNDOCUMENTED
+  };
+  
   if ((Int32)address == 0x1000002C) { // Pre-programmed factory code present
     *(Int32 *)value = 0xFFFFFFFF;
-  } else if ((Int32)address == 0x100000a4) { // DEVICEADDR
-    *(Int32 *)value = 0x1963137B;
-  } else if ((Int32)address == 0x100000a0) { // DEVICEADDRTYPE
-    *(Int32 *)value = 0xFFFFFFFF;
-  } else if ((Int32)address == 0x100000a8) { // DEVICEADDR
-    *(Int32 *)value = 0x472B354C;
-  } else if ((Int32)address == 0x10000080) { // encryption root?
-    *(Int32 *)value = 0x39938601;
-  } else if ((Int32)address == 0x10000084) { // encryption root?
-    *(Int32 *)value = 0xFC6B97AE;
-  } else if ((Int32)address == 0x10000088) { // encryption root?
-    *(Int32 *)value = 0xE7108AE1;
-  } else if ((Int32)address == 0x1000008C) { // encryption root?
-    *(Int32 *)value = 0x21E9F86C;
-  } else if ((Int32)address == 0x10000090) { // identity root?
-    *(Int32 *)value = 0x6EA6F8C0;
-  } else if ((Int32)address == 0x10000094) { // identity root?
-    *(Int32 *)value = 0x7C356886;
-  } else if ((Int32)address == 0x10000098) { // identity root?
-    *(Int32 *)value = 0x93DDF20D;
-  } else if ((Int32)address == 0x1000009C) { // identity root?
-    *(Int32 *)value = 0xBCBB9428;
+  } else if ((Int32)address >= 0x10000080 && (Int32)address <= 0x100000AC) {
+    Int32 id = ((Int32)address - 0x10000080) >> 2;
+    *(Int32 *)value = segment1[id];
   } else if ((Int32)address == 0x10000014) { // CODESIZE
     *(Int32 *)value = 0x00000100;
   } else if ((Int32)address == 0x10000010) { // CODEPAGESIZE
     *(Int32 *)value = 0x00000400;
   } else if ((Int32)address == 0x10000028) { // CLENR0
     *(Int32 *)value = 0xFFFFFFFF;
-  } else if ((Int32)address == 0x100000AC) { // UNDOCUMENTED
-    *(Int32 *)value = 0xFFFFFFF6;
-  } else if ((Int32)address == 0x100000EC) { // UNDOCUMENTED
-    *(Int32 *)value = 0x7D005600;
-  } else if ((Int32)address == 0x100000F0) { // UNDOCUMENTED
-    *(Int32 *)value = 0x5C000050;
-  } else if ((Int32)address == 0x100000F4) { // UNDOCUMENTED
-    *(Int32 *)value = 0x680E8804;
-  } else if ((Int32)address == 0x100000F8) { // UNDOCUMENTED
-    *(Int32 *)value = 0x00726424;
-  } else if ((Int32)address == 0x100000FC) { // UNDOCUMENTED
-    *(Int32 *)value = 0x824B423E;
+  } else if ((Int32)address >= 0x100000EC && (Int32)address <= 0x100000FC) { // UNDOCUMENTED
+    Int32 id = ((Int32)address - 0x100000EC) >> 2;
+    *(Int32 *)value = segment2[id];
   } else {
     icmPrintf("********** Not handled mem location - FICR");
     icmTerminate();
@@ -666,6 +643,8 @@ static ICM_MEM_WRITE_FN(extMemWriteNVMCCB) {
   );
 }
 
+// @TODO move the clock/power handler to a separate file
+
 static ICM_MEM_READ_FN(extMemReadClockCB) {
   if ((Int32)address == 0x40000104) { // EVENTS_HFCLKSTARTED
     *(Int32 *)value = 1;
@@ -693,31 +672,31 @@ static ICM_MEM_READ_FN(extMemReadClockCB) {
 
 static ICM_MEM_WRITE_FN(extMemWriteClockCB) {
   if ((Int32)address == 0x40000524) { // Power - RAM on/off
-    icmPrintf("Write to Power - RAM on/off");
+    icmPrintf("Write to Power - RAM on/off\n");
   } else if ((Int32)address == 0x40000514) { // Power - POFCON - power failure config
-    icmPrintf("Write to Power - POFCON - power failure config");
+    icmPrintf("Write to Power - POFCON - power failure config\n");
   } else if ((Int32) address == 0x40000554) { // XTALFREQ
-    icmPrintf("Write to Clock - XTALFREQ");
+    icmPrintf("Write to Clock - XTALFREQ\n");
   } else if ((Int32)address == 0x4000000c) { // TASKS_LFCLKSTOP
-    icmPrintf("Write to Clock TASKS_LFCLKSTOP");
+    icmPrintf("Write to Clock TASKS_LFCLKSTOP\n");
   } else if ((Int32)address == 0x40000104) { // EVENTS_HFCLKSTARTED
-    icmPrintf("Write to Clock EVENTS_HFCLKSTARTED");
+    icmPrintf("Write to Clock EVENTS_HFCLKSTARTED\n");
   } else if ((Int32)address == 0x40000518) { // LFCLKSRC
-    icmPrintf("Write to Clock LFCLKSRC");
+    icmPrintf("Write to Clock LFCLKSRC\n");
   } else if ((Int32)address == 0x40000304) { // INTENSET
-    icmPrintf("Write to Clock INTENSET");
+    icmPrintf("Write to Clock INTENSET\n");
   } else if ((Int32)address == 0x40000008) { // TASKS_LFCLKSTART 
-    icmPrintf("Write to Clock TASKS_LFCLKSTART ");   
+    icmPrintf("Write to Clock TASKS_LFCLKSTART\n");   
   } else if ((Int32)address == 0x40000308) { // INTENCLR
-    icmPrintf("Write to Clock INTENCLR");
+    icmPrintf("Write to Clock INTENCLR\n");
   } else if ((Int32)address == 0x40000108) { // LFCLKSRCCOPY  
-    icmPrintf("Write to Clock LFCLKSRCCOPY");
+    icmPrintf("Write to Clock LFCLKSRCCOPY\n");
   } else if ((Int32)address == 0x40000100) { // HFCLKSTARTED  
-    icmPrintf("Write to Clock HFCLKSTARTED");
+    icmPrintf("Write to Clock HFCLKSTARTED\n");
   } else if ((Int32)address == 0x40000000) { // HFCLKSTART
-    icmPrintf("Write to Clock HFCLKSTART");
+    icmPrintf("Write to Clock HFCLKSTART\n");
   } else if ((Int32)address == 0x40000004) { // HFCLKSTOP
-    icmPrintf("Write to Clock HFCLKSTOP");
+    icmPrintf("Write to Clock HFCLKSTOP\n");
   } else {
     icmPrintf("********** Not handled mem location for writing - power/clock/mpu - 0x%08x\n", (Int32)address);
     icmTerminate();
@@ -729,107 +708,17 @@ static ICM_MEM_WRITE_FN(extMemWriteClockCB) {
   );
 }
 
-/*static ICM_MEM_READ_FN(extMemReadRTCCB) {
-  
-  if ((Int32) address == 0x4000b504) { // COUNTER
-    icmPrintf("Read from RTC COUNTER");
-    *(Int32 *)value = *(Int32 *)value + 1;
-  } else {
-    icmPrintf("********** Not handled mem location - RTC");
-    icmTerminate();
-  }
-  
-  icmPrintf(
-    "RTC MEMORY: Reading 0x%08x from 0x%08x\n",
-    *(Int32 *)value, (Int32)address
-  );
+// @TODO move PPI implementation in separate file
+
+void sync_ppi_queue(unsigned int bitmask) {
+  ppi_queue_size = 0;
+  int i;
+  for (i = 0; i < 16; i++) {
+    if ((bitmask & (1 << i)) != 0) {
+      ppi_queue[ppi_queue_size++] = i;
+    }
+  } 
 }
-
-static ICM_MEM_WRITE_FN(extMemWriteRTCCB) {
-  if ((Int32) address == 0x4000b308) { // INTENSET
-    icmPrintf("Write to RTC INTENSET");
-  } else if ((Int32) address == 0x4000bffc) { // POWER
-    icmPrintf("Write to RTC POWER");
-  } else if ((Int32) address == 0x4000b348) { // EVTENSET
-    icmPrintf("Write to RTC EVTENSET");
-  } else if ((Int32) address == 0x4000b540) { // CC[1]
-    icmPrintf("Write to RTC CC[0]");
-  } else if ((Int32) address == 0x4000b140) { // COMPARE[1]
-    icmPrintf("Write to RTC COMPARE[0]");
-  } else if ((Int32) address == 0x4000b544) { // CC[1]
-    icmPrintf("Write to RTC CC[1]");
-  } else if ((Int32) address == 0x4000b144) { // COMPARE[1]
-    icmPrintf("Write to RTC COMPARE[1]");
-  } else if ((Int32) address == 0x4000b004) { // STOP
-    icmPrintf("Write to RTC STOP");  
-  } else if ((Int32) address == 0x4000b008) { // CLEAR
-    icmPrintf("Write to RTC CLEAR");
-  } else if ((Int32) address == 0x4000b548) { // CC[2]
-    icmPrintf("Write to RTC CC[2]");
-  } else if ((Int32) address == 0x4000b148) { // COMPARE[2]
-    icmPrintf("Write to RTC COMPARE[2]");
-  } else if ((Int32) address == 0x4000b000) { // START
-    icmPrintf("Write to RTC START");
-  } else if ((Int32) address == 0x4000b504) { // COUNTER
-    icmPrintf("Write to RTC COUNTER");
-  } else if ((Int32) address == 0x4000b304) { // INTENSET
-    icmPrintf("Write to RTC INTENSET");
-  } else if ((Int32) address == 0x4000b344) { // EVENTSET
-    icmPrintf("Write to RTC EVENTSET");  
-  } else {
-    icmPrintf("********** Not handled mem location for writing - RTC");
-    icmTerminate();
-  }
-  
-  icmPrintf(
-    "RTC MEMORY: Writing 0x%08x to 0x%08x (%d, %d, %d)\n",
-    *(Int32*)value, (Int32)address, (int)bytes, (int)value, (int)userData
-  );
-}*/
-
-/*static ICM_MEM_READ_FN(extMemReadTimer0CB) {
-  if ((Int32)address == 0) { // hm?
-    // *(Int32 *)value = 1;
-  } else {
-    icmPrintf("********** Not handled mem location - timer0");
-    icmTerminate();
-  }
-  icmPrintf(
-    "Timer0 MEMORY: Reading 0x%08x from 0x%08x\n",
-    *(Int32 *)value, (Int32)address
-  );
-}
-
-static ICM_MEM_WRITE_FN(extMemWriteTimer0CB) {
-  if ((Int32)address == 0x40008FFC) { // Timer0 power
-    icmPrintf("Write to Timer0 power");
-  } else if ((Int32)address == 0x40008308) { // Timer0 INTENCLEAR
-    icmPrintf("Write to Timer0 INTENCLEAR");
-  } else if ((Int32)address == 0x40008540) { // Timer0 Capture/compare registers [0]
-    icmPrintf("Write to Timer0 CC[0]");
-  } else if ((Int32)address == 0x40008140) { // Timer0 EVENTS_COMPARE[0]
-    icmPrintf("Write to Timer0 EVENTS_COMPARE[0]");
-  } else if ((Int32)address == 0x40008200) { // Timer0 Shortcuts for timer
-    icmPrintf("Write to Timer0 - Shortcuts for timer SHORTS");
-  } else if ((Int32)address == 0x40008504) { // Timer0 MODE
-    icmPrintf("Write to Timer0 - MODE");
-  } else if ((Int32)address == 0x40008508) { // Timer0 BITMODE - sets timer behavior
-    icmPrintf("Write to Timer0 - BITMODE");
-  } else if ((Int32)address == 0x40008510) { // Timer0 PRESCALER
-    icmPrintf("Write to Timer0 - PRESCALER - %d", *(Int32*)value);
-  } else if ((Int32)address == 0x40008304) { // Timer0 INTENSET
-    icmPrintf("Write to Timer0 - INTENSET");
-    
-  } else {
-    icmPrintf("********** Not handled mem location for writing - timer0");
-    icmTerminate();
-  }
-  
-  icmPrintf(
-    "Timer0 MEMORY: Writing 0x%08x to 0x%08x (%d, %d, %d)\n",
-    *(Int32*)value, (Int32)address, (int)bytes, (int)value, (int)userData
-  );
-}*/
 
 static ICM_MEM_READ_FN(extMemReadPPICB) {
   if ((Int32)address == 0x4001f800) { // PPI Channel group config CHG[0]
@@ -846,83 +735,26 @@ static ICM_MEM_READ_FN(extMemReadPPICB) {
   );
 }
 
-void sync_ppi_queue(unsigned int bitmask) {
-  ppi_queue_size = 0;
-  int i;
-  for (i = 0; i < 16; i++) {
-    if ((bitmask & (1 << i)) != 0) {
-      ppi_queue[ppi_queue_size++] = i;
-    }
-  }
-  
-}
-
 static ICM_MEM_WRITE_FN(extMemWritePPICB) {
   if ((Int32)address == 0x4001f504) { // PPI Channel enable set
     ppi.CHENSET = *(Int32*)value;
     ppi.CHEN |= *(Int32*)value;
     sync_ppi_queue(ppi.CHEN);
-    icmPrintf("Write to PPI CHENSET ");
-  } else if ((Int32)address == 0x4001f550) { // PPI CH[8] Channel event end-point
-    ppi.CH[8].EEP = (*(Int32*)value);
-    icmPrintf("Write to PPI CH[8] EEP ");
-  } else if ((Int32)address == 0x4001f554) { // PPI CH[8] Channel task end-point
-    ppi.CH[8].TEP = (*(Int32*)value);
-    icmPrintf("Write to PPI CH[8] TEP ");
-  } else if ((Int32)address == 0x4001f558) { // PPI CH[9] Channel event end-point
-    ppi.CH[9].EEP = (*(Int32*)value);
-    icmPrintf("Write to PPI CH[9] EEP ");
-  } else if ((Int32)address == 0x4001f55c) { // PPI CH[9] Channel task end-point
-    ppi.CH[9].TEP = (*(Int32*)value);
-    icmPrintf("Write to PPI CH[9] TEP ");
-  } else if ((Int32)address == 0x4001f560) { // PPI CH[10] Channel event end-point
-    ppi.CH[10].EEP = (*(Int32*)value);
-    icmPrintf("Write to PPI CH[10] EEP ");
-  } else if ((Int32)address == 0x4001f564) { // PPI CH[10] Channel task end-point
-    ppi.CH[10].TEP = (*(Int32*)value);
-    icmPrintf("Write to PPI CH[10] TEP ");
-  } else if ((Int32)address == 0x4001f568) { // PPI CH[11] Channel event end-point
-    ppi.CH[11].EEP = (*(Int32*)value);
-    icmPrintf("Write to PPI CH[11] EEP ");
-  } else if ((Int32)address == 0x4001f56c) { // PPI CH[11] Channel task end-point
-    ppi.CH[11].TEP = (*(Int32*)value);
-    icmPrintf("Write to PPI CH[11] TEP ");
-  } else if ((Int32)address == 0x4001f570) { // PPI CH[12] Channel event end-point
-    ppi.CH[12].EEP = (*(Int32*)value);
-    icmPrintf("Write to PPI CH[12] EEP ");
-  } else if ((Int32)address == 0x4001f574) { // PPI CH[12] Channel task end-point
-    ppi.CH[12].TEP = (*(Int32*)value);
-    icmPrintf("Write to PPI CH[12] TEP ");
-  } else if ((Int32)address == 0x4001f578) { // PPI CH[13] Channel event end-point
-    ppi.CH[13].EEP = (*(Int32*)value);
-    icmPrintf("Write to PPI CH[13] EEP ");
-  } else if ((Int32)address == 0x4001f57c) { // PPI CH[13] Channel task end-point
-    ppi.CH[13].TEP = (*(Int32*)value);
-    icmPrintf("Write to PPI CH[13] TEP ");
-  } else if ((Int32)address == 0x4001f580) { // PPI CH[14] Channel event end-point
-    ppi.CH[14].EEP = (*(Int32*)value);
-    icmPrintf("Write to PPI CH[14] EEP ");
-  } else if ((Int32)address == 0x4001f584) { // PPI CH[14] Channel task end-point
-    ppi.CH[14].TEP = (*(Int32*)value);
-    icmPrintf("Write to PPI CH[14] TEP ");
-  } else if ((Int32)address == 0x4001f588) { // PPI CH[15] Channel event end-point
-    ppi.CH[15].EEP = (*(Int32*)value);
-    icmPrintf("Write to PPI CH[15] EEP ");
-  } else if ((Int32)address == 0x4001f58c) { // PPI CH[15] Channel task end-point
-    ppi.CH[15].TEP = (*(Int32*)value);
-    icmPrintf("Write to PPI CH[15] TEP ");
-  } else if ((Int32)address == 0x4001f800) { // PPI Channel group configuration CHG[0]
-    ppi.CHG[0] = (*(Int32*)value);
-    icmPrintf("Write to PPI CHG[0] ");
-  } else if ((Int32)address == 0x4001f804) { // PPI Channel group configuration CHG[1]
-    ppi.CHG[1] = (*(Int32*)value);
-    icmPrintf("Write to PPI CHG[1] ");
-  } else if ((Int32)address == 0x4001f808) { // PPI Channel group configuration CHG[2]
-    ppi.CHG[2] = (*(Int32*)value);
-    icmPrintf("Write to PPI CHG[2] ");
-  } else if ((Int32)address == 0x4001f80c) { // PPI Channel group configuration CHG[3]
-    ppi.CHG[3] = (*(Int32*)value);
-    icmPrintf("Write to PPI CHG[3] ");
+    icmPrintf("Write to PPI CHENSET\n");
+  } else if ((Int32)address >= 0x4001f510 && (Int32)address <= 0x4001f58c) { // PPI CHANNEL
+    Int32 id = ((Int32)address - 0x4001f510) / 8;
+    
+    if ((Int32)address % 8 == 0) {  
+      ppi.CH[id].EEP = (*(Int32*)value);
+      icmPrintf("Write to PPI CH[%d] EEP\n", id);
+    } else {
+      ppi.CH[id].TEP = (*(Int32*)value);
+      icmPrintf("Write to PPI CH[%d] TEP\n", id);
+    }
+  } else if ((Int32)address >= 0x4001f800 && (Int32)address <= 0x4001f80c) { // PPI Channel group configuration 
+    Int32 id = ((Int32)address - 0x4001f800) / 4;
+    ppi.CHG[id] = (*(Int32*)value);
+    icmPrintf("Write to PPI CHG[%d] (group!!!)\n", id);
   } else if ((Int32)address == 0x4001f508) { // PPI Channel clear
     ppi.CHEN &= ~(*(Int32*)value);
     sync_ppi_queue(ppi.CHEN);
