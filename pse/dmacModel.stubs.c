@@ -194,7 +194,7 @@ void update_irq_lines() {
     bhmPrintf("\n$$$$$ TIMER IRQ ON \n");
     ppmWriteNet(irq_handle, 1);
     should_trigger_irq = 0;
-    bhmWaitDelay(5.0);
+    bhmWaitDelay(50.0);
     ppmWriteNet(irq_handle, 0);
     bhmPrintf("\n$$$$$ TIMER IRQ OFF \n");
   }

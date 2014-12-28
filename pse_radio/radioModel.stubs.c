@@ -98,7 +98,7 @@ void flow() {
             // trigger irq
             trigger_irq();
             update_irq_lines();
-            bhmWaitDelay( 10.0 ); // in uS
+            bhmWaitDelay( 50.0 ); // in uS
             bhmPrintf("\n WTF???? \n");
             trigger_irq();
             update_irq_lines();

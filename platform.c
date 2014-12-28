@@ -23,6 +23,7 @@
 
 #include "icm/icmCpuManager.h"
 #include "hex_loader.h"
+#include "cycles_table.h"
 #include "platform.h"
 
 // Function prototype and variables used
@@ -65,6 +66,8 @@ static int ppi_queue_size = 0;
 static Uns32 oldPPIValue;
 static int should_run_ppi = 0;
 
+#define CYCLES_TABLE_SIZE 0xC000
+static unsigned char cycles_table[CYCLES_TABLE_SIZE];
 
 //#define TRACE 1
 
@@ -81,6 +84,11 @@ int main(int argc, char ** argv) {
 
     // read the arguments and set application, processorType and alternateVendor
     parseArgs(argc, argv);
+    
+    if (load_table("cycles_map.txt", cycles_table, CYCLES_TABLE_SIZE) != 0) {
+      icmPrintf("Could not load the instruction cycles table!\n");
+      return -1;
+    }
     
     // initialize CpuManager
     icmInitPlatform(ICM_VERSION, ICM_VERBOSE|ICM_ENABLE_IMPERAS_INTERCEPTS|ICM_STOP_ON_CTRLC, 0, 0, "platform");
@@ -338,22 +346,44 @@ static void simulate_custom_platform(icmProcessorP processor) {
   //icmReadProcessorMemory(processor, 0x40008140, &mem, sizeof(mem));
   //icmReadProcessorMemory(processor, 0x40008ffc, &mem, sizeof(mem));
   
-  Uns32 currentPC = 0;
+  Uns32 currentPC = 0, prevPC = 0;
+  unsigned char is_branch = 0;
   double TIME_SLICE = 1.0 / 16000000.0;
-  icmTime myTime;
+  //icmTime myTime;
   icmStopReason rtnVal = ICM_SR_SCHED;
-  for (myTime = TIME_SLICE; rtnVal == ICM_SR_SCHED || rtnVal == ICM_SR_HALT; myTime += TIME_SLICE) {
+  Uns64 tick = 0;
+  for (tick = 0; rtnVal == ICM_SR_SCHED || rtnVal == ICM_SR_HALT; tick++) {
     
       start_pending_irqs();
 
+      if (rtnVal == ICM_SR_SCHED) {
+        icmPrintf("%f -> 0x%08x\n", (double)tick * TIME_SLICE, currentPC);
+      }
+      
       #ifdef TRACE
       Uns32 currentPC = (Uns32)icmGetPC(processor);
       const char* disassemble = icmDisassemble(processor, currentPC);
       #endif
       
+      prevPC = currentPC;
       currentPC = (Uns32)icmGetPC(processor);
-      if (rtnVal == ICM_SR_SCHED) {
-        icmPrintf("%f -> 0x%08x\n", (double)myTime, currentPC);
+      if (rtnVal == ICM_SR_SCHED && is_branch != 0 && (prevPC + sizeof(int) != currentPC || prevPC + sizeof(short) != currentPC)) {
+        //myTime += 2 * TIME_SLICE;
+        tick += 2;
+      }
+
+      unsigned char cycles = 0;
+      is_branch = 0;
+      Uns32 address = currentPC >> 1;
+      if (address < CYCLES_TABLE_SIZE) {
+        cycles = cycles_table[address] & 0x7F;
+        is_branch = ((cycles_table[address] & 0x80) != 0);
+      }
+      
+      //icmPrintf("??? 0x%08x\n", cycles_table[currentPC]);
+      if (rtnVal == ICM_SR_SCHED && cycles == 0) {
+        const char* disassemble = icmDisassemble(processor, currentPC);
+        icmPrintf(" (unknown instruction in the cycles table) : %s\n", disassemble);
       }
       
       /*if (currentPC == 0x13020) {
@@ -376,7 +406,12 @@ static void simulate_custom_platform(icmProcessorP processor) {
       //done = (icmSimulate(processor, 1) != ICM_SR_SCHED);
       rtnVal = icmSimulate(processor, 1); // it could return "halt" on wfe?
       if (rtnVal != ICM_SR_SCHED) {
-        myTime += 15.0 * TIME_SLICE;
+        //myTime += 15.0 * TIME_SLICE;
+        tick += 31;
+      } else if (cycles > 1) {
+        //icmPrintf("cycles: %f\n", ((double)(cycles-1)));
+        //myTime += (((double)(cycles-1)) * TIME_SLICE);
+        tick += cycles - 1;
       }
       /*if (result != prev_result) icmPrintf("************* new result %d", result);
       prev_result = result;
@@ -386,7 +421,8 @@ static void simulate_custom_platform(icmProcessorP processor) {
         icmPrintf("cpu status %d\n", rtnVal);
       }*/
       
-      icmAdvanceTime(myTime);
+      //icmAdvanceTime(myTime);
+      icmAdvanceTime((double)tick * TIME_SLICE);
       
       #ifdef TRACE
       int dbg_status = (strstr(disassemble, "e7fe") == NULL && rtnVal == ICM_SR_SCHED);
@@ -429,7 +465,7 @@ static void simulate_custom_platform(icmProcessorP processor) {
       
       //if (cnt++ > 16000000 / 2) break;
       //cnt++;
-      if (myTime > 0.5) break;
+      if (tick > 16000000 / 2) break;
   } 
 }
 
