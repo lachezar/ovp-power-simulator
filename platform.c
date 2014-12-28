@@ -351,7 +351,7 @@ static void simulate_custom_platform(icmProcessorP processor) {
   double TIME_SLICE = 1.0 / 16000000.0;
   //icmTime myTime;
   icmStopReason rtnVal = ICM_SR_SCHED;
-  Uns64 tick = 0;
+  Uns32 tick = 0;
   for (tick = 0; rtnVal == ICM_SR_SCHED || rtnVal == ICM_SR_HALT; tick++) {
     
       start_pending_irqs();
@@ -374,7 +374,7 @@ static void simulate_custom_platform(icmProcessorP processor) {
 
       unsigned char cycles = 0;
       is_branch = 0;
-      Uns32 address = currentPC >> 1;
+      const Uns32 address = currentPC >> 1;
       if (address < CYCLES_TABLE_SIZE) {
         cycles = cycles_table[address] & 0x7F;
         is_branch = ((cycles_table[address] & 0x80) != 0);
@@ -384,6 +384,9 @@ static void simulate_custom_platform(icmProcessorP processor) {
       if (rtnVal == ICM_SR_SCHED && cycles == 0) {
         const char* disassemble = icmDisassemble(processor, currentPC);
         icmPrintf(" (unknown instruction in the cycles table) : %s\n", disassemble);
+        //icmPrintf(" (unknown instruction in the cycles table) :\n");
+        //icmPrintf(disassemble);
+        cycles = 1;
       }
       
       /*if (currentPC == 0x13020) {
@@ -422,7 +425,7 @@ static void simulate_custom_platform(icmProcessorP processor) {
       }*/
       
       //icmAdvanceTime(myTime);
-      icmAdvanceTime((double)tick * TIME_SLICE);
+      icmAdvanceTime(((double)tick) * TIME_SLICE);
       
       #ifdef TRACE
       int dbg_status = (strstr(disassemble, "e7fe") == NULL && rtnVal == ICM_SR_SCHED);
@@ -459,6 +462,7 @@ static void simulate_custom_platform(icmProcessorP processor) {
       stop_pending_irqs();
      
       if (/*cnt % 10 == 0 ||*/ should_run_ppi != 0) {
+        icmPrintf("**** should run ppi\n");
         should_run_ppi = 0;
         run_ppi(processor, &ppi);
       }

@@ -215,7 +215,7 @@ void loop() {
     //counter = (counter + 1) & 0xFFFFFF;
 
     
-    bhmWaitDelay( 0.01 ); // in uS
+    bhmWaitDelay( 1.0 ); // in uS
   }
   
 }
