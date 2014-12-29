@@ -24,12 +24,12 @@
 #include "icm/icmCpuManager.h"
 #include "hex_loader.h"
 #include "cycles_table.h"
-#include "platform.h"
+#include "ppi.h"
 
 // Function prototype and variables used
 static void simulate_custom_platform(icmProcessorP processor);
 static void parseArgs(int argc, char ** argv);
-static NET_WRITE_FN(intPPINetWritten);
+
 static ICM_MEM_READ_FN(extMemReadCB);
 static ICM_MEM_WRITE_FN(extMemWriteCB);
 static ICM_MEM_READ_FN(extMemReadGPIOCB);
@@ -46,8 +46,7 @@ static ICM_MEM_WRITE_FN(extMemWriteClockCB);
 static ICM_MEM_WRITE_FN(extMemWriteRTCCB);*/
 /*static ICM_MEM_READ_FN(extMemReadTimer0CB);
 static ICM_MEM_WRITE_FN(extMemWriteTimer0CB);*/
-static ICM_MEM_READ_FN(extMemReadPPICB);
-static ICM_MEM_WRITE_FN(extMemWritePPICB);
+
 const char *application;
 const char *processorType;
 const char *alternateVendor;
@@ -59,12 +58,6 @@ int should_start_rng_int = 0;
 int should_stop_rng_int = 0;
 int rng_started = 0;
 int rng_irq_enabled = 0;
-
-static NRF_PPI_Type ppi;
-static int ppi_queue[16];
-static int ppi_queue_size = 0;
-static Uns32 oldPPIValue;
-static int should_run_ppi = 0;
 
 #define CYCLES_TABLE_SIZE 0xC000
 static unsigned char cycles_table[CYCLES_TABLE_SIZE];
@@ -241,9 +234,9 @@ int main(int argc, char ** argv) {
     icmConnectPSENet(timer0, timer0PPINet, "timer0_ppi", ICM_OUTPUT);
     icmConnectPSENet(radio, radioPPINet, "radio_ppi", ICM_OUTPUT);
     
-    icmAddNetCallback(rtcPPINet, intPPINetWritten, &oldPPIValue);
-    icmAddNetCallback(timer0PPINet, intPPINetWritten, &oldPPIValue);
-    icmAddNetCallback(radioPPINet, intPPINetWritten, &oldPPIValue);
+    icmAddNetCallback(rtcPPINet, intPPINetWritten, NULL);
+    icmAddNetCallback(timer0PPINet, intPPINetWritten, NULL);
+    icmAddNetCallback(radioPPINet, intPPINetWritten, NULL);
     
     rngNet = icmNewNet("rng_irq");
     icmConnectProcessorNet(processor, rngNet, "int13", ICM_INPUT);
@@ -304,33 +297,6 @@ inline void stop_pending_irqs() {
     icmWriteNet(rngNet, 0);
     should_stop_rng_int = 0;
     icmPrintf("****RNG IRQ SIGNAL STOPPED\n");
-  }
-}
-
-inline void run_ppi(icmProcessorP processor, NRF_PPI_Type* ppi) {
-  int i, j;
-  Uns32 data;
-  const Uns32 signal = 1;
-  //const Uns32 stop_signal = 0;
-  
-  //icmPrintf("PPI->CHEN 0x%08x\n", ppi->CHEN);
-  
-  for (i = 0; i < ppi_queue_size; i++) {
-    //icmPrintf("ppi_queue[i] 0x%08x\n", ppi_queue[i]);
-    j = ppi_queue[i];
-    PPI_CH_Type ppich = ppi->CH[j];
-
-    if (ppich.EEP != 0 && ppich.TEP != 0 && (ppi->CHEN & (1 << j)) != 0) {
-      // get data from address ppich.EEP    
-      icmReadProcessorMemory(processor, ppich.EEP, &data, 4);
-
-      if (data != 0) {
-        // write 1 to ppich.TEP address
-        icmWriteProcessorMemory(processor, ppich.TEP, &signal, 4);
-        icmPrintf("****PPI CONNECTION DONE! EEP 0x%08x -> TEP 0x%08x\n", ppich.EEP, ppich.TEP);
-        //icmWriteProcessorMemory(processor, ppich.EEP, &stop_signal, 4);
-      }
-    }
   }
 }
 
@@ -448,27 +414,11 @@ static void simulate_custom_platform(icmProcessorP processor) {
       // dump registers
       if (dbg_status) icmDumpRegisters(processor);
       #endif
-      
-      /*if (cnt == 24200) {
-        icmWriteNet(timer0Net, 1); // interruption on Timer0
-        icmPrintf("******Timer0 interruption");
-      }
-      
-      if (cnt == 24600) {
-        icmWriteNet(rtcNet, 1); // interruption on Timer0
-        icmPrintf("******RTC interruption");
-      }*/
-      
+            
       stop_pending_irqs();
      
-      if (/*cnt % 10 == 0 ||*/ should_run_ppi != 0) {
-        icmPrintf("**** should run ppi\n");
-        should_run_ppi = 0;
-        run_ppi(processor, &ppi);
-      }
+      run_ppi(processor);
       
-      //if (cnt++ > 16000000 / 2) break;
-      //cnt++;
       if (tick > 16000000 / 2) break;
   } 
 }
@@ -487,11 +437,6 @@ static void parseArgs(int argc, char ** argv) {
     /*if(argc==4) {
         alternateVendor = argv[3];
     }*/
-}
-
-static NET_WRITE_FN(intPPINetWritten) {
-  icmPrintf("@@@ Trigger PPI Nets with value = %d\n", value);
-  should_run_ppi = value;
 }
 
 // @TODO move RNG to external file
@@ -714,62 +659,4 @@ static ICM_MEM_WRITE_FN(extMemWriteClockCB) {
 
 // @TODO move PPI implementation in separate file
 
-void sync_ppi_queue(unsigned int bitmask) {
-  ppi_queue_size = 0;
-  int i;
-  for (i = 0; i < 16; i++) {
-    if ((bitmask & (1 << i)) != 0) {
-      ppi_queue[ppi_queue_size++] = i;
-    }
-  } 
-}
 
-static ICM_MEM_READ_FN(extMemReadPPICB) {
-  if ((Int32)address == 0x4001f800) { // PPI Channel group config CHG[0]
-    *(Int32 *)value = ppi.CHG[0];
-  } else if ((Int32)address == 0x4001f804) { // PPI Channel group config CHG[1]
-    *(Int32 *)value = ppi.CHG[1];
-  } else {
-    icmPrintf("********** Not handled mem location - PPI - 0x%08x\n", (Int32)address);
-    icmTerminate();
-  }
-  icmPrintf(
-    "PPI MEMORY: Reading 0x%08x from 0x%08x\n",
-    *(Int32 *)value, (Int32)address
-  );
-}
-
-static ICM_MEM_WRITE_FN(extMemWritePPICB) {
-  if ((Int32)address == 0x4001f504) { // PPI Channel enable set
-    ppi.CHENSET = *(Int32*)value;
-    ppi.CHEN |= *(Int32*)value;
-    sync_ppi_queue(ppi.CHEN);
-    icmPrintf("Write to PPI CHENSET\n");
-  } else if ((Int32)address >= 0x4001f510 && (Int32)address <= 0x4001f58c) { // PPI CHANNEL
-    Int32 id = ((Int32)address - 0x4001f510) / 8;
-    
-    if ((Int32)address % 8 == 0) {  
-      ppi.CH[id].EEP = (*(Int32*)value);
-      icmPrintf("Write to PPI CH[%d] EEP\n", id);
-    } else {
-      ppi.CH[id].TEP = (*(Int32*)value);
-      icmPrintf("Write to PPI CH[%d] TEP\n", id);
-    }
-  } else if ((Int32)address >= 0x4001f800 && (Int32)address <= 0x4001f80c) { // PPI Channel group configuration 
-    Int32 id = ((Int32)address - 0x4001f800) / 4;
-    ppi.CHG[id] = (*(Int32*)value);
-    icmPrintf("Write to PPI CHG[%d] (group!!!)\n", id);
-  } else if ((Int32)address == 0x4001f508) { // PPI Channel clear
-    ppi.CHEN &= ~(*(Int32*)value);
-    sync_ppi_queue(ppi.CHEN);
-    icmPrintf("Write to PPI CHENCLR ");    
-  } else {
-    icmPrintf("********** Not handled mem location for writing - PPI - 0x%08x\n", (Int32)address);
-    icmTerminate();
-  }
-  
-  icmPrintf(
-    "PPI MEMORY: Writing 0x%08x to 0x%08x (%d, %d, %d)\n",
-    (*(Int32*)value), (Int32)address, (int)bytes, (int)value, (int)userData
-  );
-}
