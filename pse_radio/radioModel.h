@@ -110,7 +110,7 @@ extern radioRegs regs;
 
 void* radio_window;
 
-bhmEventHandle start_eh;
+bhmEventHandle txen_eh;
 
 //
 // prototypes

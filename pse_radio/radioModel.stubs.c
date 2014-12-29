@@ -38,74 +38,75 @@ int trigger_flow = 0;
 void flow() {
   trigger_flow = 0;
   radio_state_t new_state = transit(regs.STATE, TXEN);
+  bhmPrintf("\n$$$ Radio NEW STATE = %d\n", new_state);
+  regs.STATE = new_state;
+  new_state = transit(regs.STATE, READY);
+  bhmPrintf("\n$$$ Radio NEW STATE = %d\n", new_state);
+  regs.STATE = new_state;
+  regs.EVENTS_READY = 1;
+  ppmWriteNet(ppi_notification_handle, 1);
+  bhmWaitDelay( 0.2 ); // in uS
+  /*new_state = transit(regs.STATE, START);
+  bhmPrintf("\n$$$ Radio NEW STATE = %d\n", new_state);
+  regs.STATE = new_state;
+  regs.TASKS_START = 1;*/
+  if ((regs.SHORTS & 1) != 0) {
+    bhmPrintf("\n$$$ Radio SHORTS trigger START\n");
+    regs.TASKS_START = 1;
+    
+    new_state = transit(regs.STATE, START);
+    bhmPrintf("\n$$$ Radio NEW STATE = %d\n", new_state);
+    regs.STATE = new_state;
+    //bhmWaitDelay( 1.0 ); // in uS
+    
+    new_state = transit(regs.STATE, ADDRESS);
+    bhmPrintf("\n$$$ Radio NEW STATE = %d\n", new_state);
+    regs.STATE = new_state;
+    regs.EVENTS_ADDRESS = 1;
+    ppmWriteNet(ppi_notification_handle, 1);
+    bhmWaitDelay( 0.2 ); // in uS
+    
+    new_state = transit(regs.STATE, PAYLOAD);
+    bhmPrintf("\n$$$ Radio NEW STATE = %d\n", new_state);
+    regs.STATE = new_state;
+    regs.EVENTS_PAYLOAD = 1;
+    //bhmWaitDelay( 1.0 ); // in uS
+    
+    new_state = transit(regs.STATE, END);
+    bhmPrintf("\n$$$ Radio NEW STATE = %d\n", new_state);
+    regs.STATE = new_state;
+    regs.EVENTS_END = 1;
+    ppmWriteNet(ppi_notification_handle, 1);
+    //bhmWaitDelay( 1.0 ); // in uS
+    
+    if ((regs.SHORTS & 2) != 0) {
+      bhmPrintf("\n$$$ Radio SHORTS trigger DISABLE\n");
+      regs.TASKS_DISABLE = 1;
+      regs.TASKS_TXEN = 0;
+      new_state = transit(regs.STATE, DISABLE);
       bhmPrintf("\n$$$ Radio NEW STATE = %d\n", new_state);
       regs.STATE = new_state;
-      new_state = transit(regs.STATE, READY);
-      bhmPrintf("\n$$$ Radio NEW STATE = %d\n", new_state);
-      regs.STATE = new_state;
-      regs.EVENTS_READY = 1;
-      ppmWriteNet(ppi_notification_handle, 1);
       bhmWaitDelay( 0.2 ); // in uS
-      /*new_state = transit(regs.STATE, START);
+      
+      ppmWriteNet(ppi_notification_handle, 1);
+      regs.EVENTS_DISABLED = 1;
+      new_state = transit(regs.STATE, DISABLED_EVENT);
       bhmPrintf("\n$$$ Radio NEW STATE = %d\n", new_state);
       regs.STATE = new_state;
-      regs.TASKS_START = 1;*/
-      if ((regs.SHORTS & 1) != 0) {
-        bhmPrintf("\n$$$ Radio SHORTS trigger START\n");
-        regs.TASKS_START = 1;
-        
-        new_state = transit(regs.STATE, START);
-        bhmPrintf("\n$$$ Radio NEW STATE = %d\n", new_state);
-        regs.STATE = new_state;
-        //bhmWaitDelay( 1.0 ); // in uS
-        
-        new_state = transit(regs.STATE, ADDRESS);
-        bhmPrintf("\n$$$ Radio NEW STATE = %d\n", new_state);
-        regs.STATE = new_state;
-        regs.EVENTS_ADDRESS = 1;
-        ppmWriteNet(ppi_notification_handle, 1);
-        bhmWaitDelay( 0.2 ); // in uS
-        
-        new_state = transit(regs.STATE, PAYLOAD);
-        bhmPrintf("\n$$$ Radio NEW STATE = %d\n", new_state);
-        regs.STATE = new_state;
-        regs.EVENTS_PAYLOAD = 1;
-        //bhmWaitDelay( 1.0 ); // in uS
-        
-        new_state = transit(regs.STATE, END);
-        bhmPrintf("\n$$$ Radio NEW STATE = %d\n", new_state);
-        regs.STATE = new_state;
-        regs.EVENTS_END = 1;
-        ppmWriteNet(ppi_notification_handle, 1);
-        //bhmWaitDelay( 1.0 ); // in uS
-        
-        if ((regs.SHORTS & 2) != 0) {
-          bhmPrintf("\n$$$ Radio SHORTS trigger DISABLE\n");
-          regs.TASKS_DISABLE = 1;
-          new_state = transit(regs.STATE, DISABLE);
-          bhmPrintf("\n$$$ Radio NEW STATE = %d\n", new_state);
-          regs.STATE = new_state;
-          bhmWaitDelay( 0.2 ); // in uS
-          
-          ppmWriteNet(ppi_notification_handle, 1);
-          regs.EVENTS_DISABLED = 1;
-          new_state = transit(regs.STATE, DISABLED_EVENT);
-          bhmPrintf("\n$$$ Radio NEW STATE = %d\n", new_state);
-          regs.STATE = new_state;
-          //bhmWaitDelay( 1.0 ); // in uS
-          
-          if ((regs.INTENSET & 0x10) != 0) {
-            // trigger irq
-            trigger_irq();
-            update_irq_lines();
-            bhmWaitDelay( 50.0 ); // in uS
-            bhmPrintf("\n WTF???? \n");
-            trigger_irq();
-            update_irq_lines();
-            //bhmWaitDelay( 0.02 );
-          }
-        }
+      //bhmWaitDelay( 1.0 ); // in uS
+      
+      if ((regs.INTENSET & 0x10) != 0) {
+        // trigger irq
+        trigger_irq();
+        update_irq_lines();
+        bhmWaitDelay( 50.0 ); // in uS
+        bhmPrintf("\n WTF???? \n");
+        trigger_irq();
+        update_irq_lines();
+        //bhmWaitDelay( 0.02 );
       }
+    }
+  }
 }
 
 //
@@ -140,6 +141,7 @@ PPM_WRITE_CB(regWr32) {
     
     if ((Uns32*)user == &regs.TASKS_TXEN) {
       trigger_flow = 1;
+      bhmTriggerEvent(txen_eh);
       bhmPrintf("\n WTF!!!! \n");
     } else if ((Uns32*)user == &regs.INTENSET) {
       bhmPrintf("Radio INTENSET = 0x%08x\n", data);
@@ -162,7 +164,7 @@ PPM_CONSTRUCTOR_CB(init) {
     
     bhmPrintf("\n\n\n$$$$$ constructor \n\n\n");
     
-    start_eh = bhmCreateNamedEvent("start", "start the Radio");
+    txen_eh = bhmCreateNamedEvent("txen", "txen");
     
     regs.TASKS_STOP = 1;
     regs.TASKS_START = 0;
@@ -190,9 +192,9 @@ void loop() {
     
     //bhmPrintf("RTC new cycle!");
     
-    /*while (regs.TASKS_STOP != 0 && regs.TASKS_START == 0) {
-      bhmWaitEvent(start_eh);
-    }*/
+    while (regs.TASKS_TXEN == 0) {
+      bhmWaitEvent(txen_eh);
+    }
     
     
     
