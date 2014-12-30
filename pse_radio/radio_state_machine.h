@@ -11,11 +11,8 @@
 #define RADIO_STATE_STATE_Tx (0x0BUL) /*!< Radio is in the Tx state. */
 #define RADIO_STATE_STATE_TxDisable (0x0CUL) /*!< Radio is in the Tx Disable state. */
 
-//typedef enum {DISABLED, TXRU, TXIDLE, TX, TXDISABLE, RXRU, RXIDLE, RX, RXDISABLE} radio_state_t;
 typedef unsigned int radio_state_t;
 typedef enum {TXEN, RXEN, READY, START, STOP, ADDRESS, PAYLOAD, END, DISABLE, DISABLED_EVENT} radio_token_t;
-
-//radio_state_t state = RADIO_STATE_STATE_Disabled;
 
 radio_state_t transit(radio_state_t state, radio_token_t token);
 

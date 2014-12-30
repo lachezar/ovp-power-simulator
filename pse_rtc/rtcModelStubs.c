@@ -113,11 +113,11 @@ PPM_CONSTRUCTOR_CB(init) {
   regs.TASKS_START = 0;
 }
 
-void triggerIrq() {
+static void triggerIrq() {
   shouldTriggerIrq = 1;
 }
 
-void updateIrqLines() {
+static void updateIrqLines() {
   if (shouldTriggerIrq == 1) {
     ppmWriteNet(irqHandle, 1);
     irqAsserted = 1;
