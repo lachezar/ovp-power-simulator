@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 
 #include "icm/icmCpuManager.h"
@@ -116,7 +117,7 @@ int main(int argc, char ** argv) {
 
     // instantiate the peripheral
     icmAttrListP icmAttrTimer = icmNewAttrList();
-    icmPseP timer0 = icmNewPSE("timer", "pse/pse.pse", icmAttrTimer, NULL, NULL);
+    icmPseP timer0 = icmNewPSE("timer", "pse_timer/pse.pse", icmAttrTimer, NULL, NULL);
     icmAttrListP icmAttrRTC = icmNewAttrList();
     icmPseP rtc0 = icmNewPSE("rtc", "pse_rtc/pse.pse", icmAttrRTC, NULL, NULL);
     icmAttrListP icmAttrRadio = icmNewAttrList();
@@ -158,7 +159,7 @@ int main(int argc, char ** argv) {
     icmPrintNetConnections();
 
     // init memory with FFs
-    int i, initmemory = 0xFFFFFFFF;
+    Uns32 i, initmemory = 0xFFFFFFFF;
     for (i = 0; i < 0x00040000 - 0x1000; i+=sizeof(int)) {
       icmWriteProcessorMemory(processor, i, &initmemory, sizeof(int));
     }
@@ -175,15 +176,12 @@ int main(int argc, char ** argv) {
       icmLoadProcessorMemory(processor, application, ICM_LOAD_PHYSICAL, True, True);
     }
     
-    unsigned int reg = 0xFFFFFFFF;
-    icmWriteReg(processor, "r0", &reg);
-    icmWriteReg(processor, "r1", &reg);
-    icmWriteReg(processor, "r2", &reg);
-    icmWriteReg(processor, "r3", &reg);
-    icmWriteReg(processor, "r4", &reg);
-    icmWriteReg(processor, "r5", &reg);
-    icmWriteReg(processor, "r6", &reg);
-    icmWriteReg(processor, "r7", &reg);
+    const Uns32 reg = 0xFFFFFFFF;
+    char register_name_buffer[4];
+    for (i = 0; i < 12; i++) {
+      sprintf(register_name_buffer, "r%d", i);
+      icmWriteReg(processor, register_name_buffer, &reg);
+    }
     
     unsigned int cafebabe = 0xcafebabe;
     icmWriteProcessorMemory(processor, 0x2000011c, &cafebabe, 4);
