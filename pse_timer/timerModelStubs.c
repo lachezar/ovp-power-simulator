@@ -41,76 +41,41 @@ PPM_WRITE_CB(regWr32) {
     regs.TASKS_STOP = 0;
     bhmTriggerEvent(startEventHandle);
     bhmPrintf("TIMER START! (to be done)");
-  }
-  if ((Uns32*)user == &regs.TASKS_STOP && data != 0 && isStarted != 0) {
+  } else if ((Uns32*)user == &regs.TASKS_STOP && data != 0 && isStarted != 0) {
     isStarted = 0;
     regs.TASKS_START = 0;
     bhmPrintf("TIMER STOP! (to be done)");
-  }
-  if ((Uns32*)user == &regs.POWER && data == 0) {
+  } else if ((Uns32*)user == &regs.POWER && data == 0) {
     isStarted = 0;
     regs.TASKS_STOP = 1;
     regs.TASKS_START = 0;
     ticks = 0;
     bhmPrintf("TIMER POWER DOWN!\n");
-  }
-  if ((Uns32*)user == &regs.MODE && data == 1) {
+  } else if ((Uns32*)user == &regs.MODE && data == 1) {
     bhmPrintf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! COUNTER MODE NOT SUPPORTED YET!");
     exit(1);
-  }
-  if ((Uns32*)user == &regs.MODE && data == 0) {
+  } else if ((Uns32*)user == &regs.MODE && data == 0) {
     bhmPrintf("TIMER in timing mode!");
-  }
-  if ((Uns32*)user == &regs.TASKS_COUNT) {
+  } else if ((Uns32*)user == &regs.TASKS_COUNT) {
     bhmPrintf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! COUNTER MODE NOT SUPPORTED YET!");
     exit(1);
-  }
-  if ((Uns32*)user == &regs.TASKS_CLEAR) {
+  } else if ((Uns32*)user == &regs.TASKS_CLEAR) {
     bhmPrintf("CLEAR TIMER ticks!");
     ticks = 0;
-  }
-  if ((Uns32*)user == &regs.TASKS_CAPTURE0) {
-    regs.CC0 = ticks;
-    bhmPrintf("CAPTURE[0] TIMER ticks!");
-  }
-  if ((Uns32*)user == &regs.TASKS_CAPTURE1) {
-    regs.CC1 = ticks;
-    bhmPrintf("CAPTURE[1] TIMER ticks!");
-  }
-  if ((Uns32*)user == &regs.TASKS_CAPTURE2) {
-    regs.CC2 = ticks;
-    bhmPrintf("CAPTURE[2] TIMER ticks!");
-  }
-  if ((Uns32*)user == &regs.TASKS_CAPTURE3) {
-    regs.CC3 = ticks;
-    bhmPrintf("CAPTURE[3] TIMER ticks!");
-  }
-
-  if ((Uns32*)user == &regs.EVENTS_COMPARE0) {
-    bhmPrintf("COMPARE0 TIMER write!");
-    ppmWriteNet(timer0NotificationHandle, 8);
-  }
-  if ((Uns32*)user == &regs.EVENTS_COMPARE1) {
-    bhmPrintf("COMPARE1 TIMER write!");
-    ppmWriteNet(timer0NotificationHandle, 8);
-  }
-  if ((Uns32*)user == &regs.EVENTS_COMPARE2) {
-    bhmPrintf("COMPARE2 TIMER write!");
-    ppmWriteNet(timer0NotificationHandle, 8);
-  }
-  if ((Uns32*)user == &regs.EVENTS_COMPARE3) {
-    bhmPrintf("COMPARE3 TIMER write!");
-    ppmWriteNet(timer0NotificationHandle, 8);
-  }
-
-  if ((Uns32*)user == &regs.SHORTS) {
+  } else if ((Uns32*)user >= &regs.TASKS_CAPTURE[0] && (Uns32*)user <= &regs.TASKS_CAPTURE[3]) {
+    Uns32 id = (Uns32*)user - &regs.TASKS_CAPTURE[0];
+    regs.CC[id] = ticks;
+    bhmPrintf("CAPTURE[%d] TIMER ticks!", id);
+  } else if ((Uns32*)user >= &regs.EVENTS_COMPARE[0] && (Uns32*)user <= &regs.EVENTS_COMPARE[3]) {
+    Uns32 id = (Uns32*)user - &regs.EVENTS_COMPARE[0];
+    bhmPrintf("COMPARE[%d] TIMER write!", id);
+    ppmWriteNet(timer0NotificationHandle, TIMER0_PERIPHERAL_ID);
+  } else if ((Uns32*)user == &regs.SHORTS) {
     bhmPrintf("TIMER SHORTS!");
-  }
-  if ((Uns32*)user == &regs.INTENSET) {
+  } else if ((Uns32*)user == &regs.INTENSET) {
     irq = irq | data;
     bhmPrintf("TIMER INTENSET!");
-  }
-  if ((Uns32*)user == &regs.INTENCLR) {
+  } else if ((Uns32*)user == &regs.INTENCLR) {
     /*
        0 0 -> 0
        0 1 -> 0
@@ -119,32 +84,21 @@ PPM_WRITE_CB(regWr32) {
      */
     irq = irq & (~data);
     bhmPrintf("TIMER INTENCLR!");
-  }
-
-  if ((Uns32*)user == &regs.BITMODE) {
+  } else if ((Uns32*)user == &regs.BITMODE) {
     bhmPrintf("TIMER BITMODE!");
-  }
-  if ((Uns32*)user == &regs.PRESCALER) {
+  } else if ((Uns32*)user == &regs.PRESCALER) {
     bhmPrintf("TIMER PRESCALER!");
     if (data < 0 || data > 9) {
       bhmPrintf("unsupported TIMER PRESCALER value = %d!", data);
       exit(1);
     }
+  } else if ((Uns32*)user >= &regs.CC[0] && (Uns32*)user <= &regs.CC[3]) {
+    Uns32 id = (Uns32*)user - &regs.CC[0];
+    bhmPrintf("CC[%d] TIMER write!", id);
+  } else {
+    bhmPrintf("\n\n\nTIMER0 unsupported memory write!\n\n\n");
+    exit(1);
   }
-
-  if ((Uns32*)user == &regs.CC0) {
-    bhmPrintf("CC0 TIMER write!");
-  }
-  if ((Uns32*)user == &regs.CC1) {
-    bhmPrintf("CC1 TIMER write!");
-  }
-  if ((Uns32*)user == &regs.CC2) {
-    bhmPrintf("CC2 TIMER write!");
-  }
-  if ((Uns32*)user == &regs.CC3) {
-    bhmPrintf("CC3 TIMER write!");
-  }
-
 }
 
 PPM_CONSTRUCTOR_CB(init) {
@@ -182,73 +136,32 @@ void loop() {
       bhmWaitEvent(startEventHandle);
     }
 
-    if (ticks == regs.CC0) {
-      bhmPrintf("\n\n$$$$$ Timer CC0 match\n");
-      regs.EVENTS_COMPARE0 = 1;
-      ppmWriteNet(timer0NotificationHandle, 0x8);
-      if ((regs.SHORTS & 0x1) != 0) {
-        ticks = 0;
-      }
-      if ((regs.SHORTS & (1 << 8)) != 0) {
-        regs.TASKS_STOP = 1;
-        regs.TASKS_START = 0;
-        continue;
-      }
-      if ((irq & (1 << 16)) != 0) {
-        // trigger interrupt
-        triggerIrq();
-      }
-    }
-    if (ticks == regs.CC1) {
-      bhmPrintf("\n\n$$$$$ Timer CC1 match\n");
-      regs.EVENTS_COMPARE1 = 1;
-      ppmWriteNet(timer0NotificationHandle, 0x8);
-      if ((regs.SHORTS & 0x2) != 0) {
-        ticks = 0;
-      }
-      if ((regs.SHORTS & (1 << 9)) != 0) {
-        regs.TASKS_STOP = 1;
-        regs.TASKS_START = 0;
-        continue;
-      }
-      if ((irq & (1 << 17)) != 0) {
-        // trigger interrupt
-        triggerIrq();
+    const Uns32 signalBitOffset = 8;
+    const Uns32 irqBitOffset = 16;
+    Uns32 i;
+    for (i = 0; i < 4; i++) {
+      if (ticks == regs.CC[i]) {
+        bhmPrintf("\n\n$$$$$ Timer CC[%d] match\n", i);
+        regs.EVENTS_COMPARE[i] = 1;
+        ppmWriteNet(timer0NotificationHandle, TIMER0_PERIPHERAL_ID);
+        if ((regs.SHORTS & (1 << i)) != 0) {
+          ticks = 0;
+        }
+        if ((regs.SHORTS & (1 << (signalBitOffset + i))) != 0) {
+          regs.TASKS_STOP = 1;
+          regs.TASKS_START = 0;
+          break;
+        }
+        if ((irq & (1 << (irqBitOffset + i))) != 0) {
+          // trigger interrupt
+          triggerIrq();
+        }
       }
     }
-    if (ticks == regs.CC2) {
-      bhmPrintf("\n\n$$$$$ Timer CC2 match\n");
-      regs.EVENTS_COMPARE2 = 1;
-      ppmWriteNet(timer0NotificationHandle, 0x8);
-      if ((regs.SHORTS & 0x4) != 0) {
-        ticks = 0;
-      }
-      if ((regs.SHORTS & (1 << 10)) != 0) {
-        regs.TASKS_STOP = 1;
-        regs.TASKS_START = 0;
-        continue;
-      }
-      if ((irq & (1 << 18)) != 0) {
-        // trigger interrupt
-        triggerIrq();
-      }
-    }
-    if (ticks == regs.CC3) {
-      bhmPrintf("\n\n$$$$$ Timer CC3 match irq = 0x%08x, shorts = 0x%08x\n", irq, regs.SHORTS);
-      regs.EVENTS_COMPARE3 = 1;
-      ppmWriteNet(timer0NotificationHandle, 0x8);
-      if ((regs.SHORTS & 0x8) != 0) {
-        ticks = 0;
-      }
-      if ((regs.SHORTS & (1 << 11)) != 0) {
-        regs.TASKS_STOP = 1;
-        regs.TASKS_START = 0;
-        continue;
-      }
-      if ((irq & (1 << 19)) != 0) {
-        // trigger interrupt
-        triggerIrq();
-      }
+
+    if (regs.TASKS_STOP == 1 && regs.TASKS_START == 0) {
+      // this will trigger wait on "start event"
+      continue;
     }
 
     //bhmPrintf("\n\n\n$$$$$ loop ticks = %d, cc0 = %d, cc1 = %d \n\n\n", ticks, regs.CC0, regs.CC1);
@@ -265,7 +178,7 @@ void loop() {
     } else if (regs.BITMODE == 2) {
       ticks = ticks & 0xFFFFFF;
     }
-    
+
     bhmWaitDelay( 1000000.0 / (double)(16000000 >> regs.PRESCALER)); // in uS
   }
 

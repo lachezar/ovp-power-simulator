@@ -43,8 +43,8 @@ static void busPortConnections(void) {
 }
 
 static void netPortConnections(void) {
-  irqHandle  = ppmOpenNetPort("rtc_irq");
-  rtcNotificationHandle  = ppmOpenNetPort("rtc_ppi");
+  irqHandle = ppmOpenNetPort("rtc_irq");
+  rtcNotificationHandle = ppmOpenNetPort("rtc_ppi");
 }
 
 PPM_CONSTRUCTOR_CB(periphConstructor) {
