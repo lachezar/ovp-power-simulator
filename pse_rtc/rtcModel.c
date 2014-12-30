@@ -2,7 +2,7 @@
 
 static void createRegisters(void *w) {
 
-  ppmCreateRegister("TASKS_START", "", w, 0x00, 4, NULL, regWr32, viewReg32, &(regs.TASKS_START), True);
+  ppmCreateRegister("TASKS_START", "", w, 0x00, 4, NULL, regWr32, viewReg32, &regs.TASKS_START, True);
   ppmCreateRegister("TASKS_STOP", "", w, 0x04, 4, NULL, regWr32, viewReg32, &regs.TASKS_STOP, True);
   ppmCreateRegister("TASKS_CLEAR", "", w, 0x08, 4, NULL, regWr32, viewReg32, &regs.TASKS_CLEAR, True);
   ppmCreateRegister("TASKS_TRIGOVRFLW", "", w, 0x0c, 4, NULL, regWr32, viewReg32, &regs.TASKS_TRIGOVRFLW, True);
@@ -10,10 +10,10 @@ static void createRegisters(void *w) {
   ppmCreateRegister("EVENTS_TICK", "", w, 0x100, 4, regRd32, regWr32, viewReg32, &regs.EVENTS_TICK, True);
   ppmCreateRegister("EVENTS_OVRFLW", "", w, 0x104, 4, regRd32, regWr32, viewReg32, &regs.EVENTS_OVRFLW, True);
 
-  ppmCreateRegister("EVENTS_COMPARE0", "", w, 0x140, 4, regRd32, regWr32, viewReg32, &regs.EVENTS_COMPARE0, True);
-  ppmCreateRegister("EVENTS_COMPARE1", "", w, 0x144, 4, regRd32, regWr32, viewReg32, &regs.EVENTS_COMPARE1, True);
-  ppmCreateRegister("EVENTS_COMPARE2", "", w, 0x148, 4, regRd32, regWr32, viewReg32, &regs.EVENTS_COMPARE2, True);
-  ppmCreateRegister("EVENTS_COMPARE3", "", w, 0x14c, 4, regRd32, regWr32, viewReg32, &regs.EVENTS_COMPARE3, True);
+  ppmCreateRegister("EVENTS_COMPARE[0]", "", w, 0x140, 4, regRd32, regWr32, viewReg32, &regs.EVENTS_COMPARE[0], True);
+  ppmCreateRegister("EVENTS_COMPARE[1]", "", w, 0x144, 4, regRd32, regWr32, viewReg32, &regs.EVENTS_COMPARE[1], True);
+  ppmCreateRegister("EVENTS_COMPARE[2]", "", w, 0x148, 4, regRd32, regWr32, viewReg32, &regs.EVENTS_COMPARE[2], True);
+  ppmCreateRegister("EVENTS_COMPARE[3]", "", w, 0x14c, 4, regRd32, regWr32, viewReg32, &regs.EVENTS_COMPARE[3], True);
 
   ppmCreateRegister("INTENSET", "", w, 0x304, 4, regRd32, regWr32, viewReg32, &regs.INTENSET, True);
   ppmCreateRegister("INTENCLR", "", w, 0x308, 4, regRd32, regWr32, viewReg32, &regs.INTENCLR, True);
@@ -24,10 +24,10 @@ static void createRegisters(void *w) {
   ppmCreateRegister("COUNTER", "", w, 0x504, 4, regRd32, NULL, viewReg32, &regs.COUNTER, True);
   ppmCreateRegister("PRESCALER", "", w, 0x508, 4, regRd32, regWr32, viewReg32, &regs.PRESCALER, True);
 
-  ppmCreateRegister("CC0", "", w, 0x540, 4, regRd32, regWr32, viewReg32, &regs.CC0, True);
-  ppmCreateRegister("CC1", "", w, 0x544, 4, regRd32, regWr32, viewReg32, &regs.CC1, True);
-  ppmCreateRegister("CC2", "", w, 0x548, 4, regRd32, regWr32, viewReg32, &regs.CC2, True);
-  ppmCreateRegister("CC3", "", w, 0x54c, 4, regRd32, regWr32, viewReg32, &regs.CC3, True);
+  ppmCreateRegister("CC[0]", "", w, 0x540, 4, regRd32, regWr32, viewReg32, &regs.CC[0], True);
+  ppmCreateRegister("CC[1]", "", w, 0x544, 4, regRd32, regWr32, viewReg32, &regs.CC[1], True);
+  ppmCreateRegister("CC[2]", "", w, 0x548, 4, regRd32, regWr32, viewReg32, &regs.CC[2], True);
+  ppmCreateRegister("CC[3]", "", w, 0x54c, 4, regRd32, regWr32, viewReg32, &regs.CC[3], True);
 
   ppmCreateRegister("POWER", "", w, 0xffc, 4, regRd32, regWr32, viewReg32, &regs.POWER, True);
 }

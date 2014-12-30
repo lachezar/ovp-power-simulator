@@ -38,62 +38,35 @@ PPM_WRITE_CB(regWr32) {
   *(Uns32*)user = data;
   bhmPrintf("\n$$$ RTC Write to 0x%08x (user - 0x%08x, data - 0x%08x, window - 0x%08x, pwr - %d) \n", (Uns32)addr - (Uns32)rtcWindow, (Uns32)user, data, (Uns32)rtcWindow, regs.POWER);
 
-  if ((Uns32*)user == &regs.TASKS_START) {
-    bhmPrintf("RTC START! (to be done), data = %d\n", data);
-  }
-
   if ((Uns32*)user == &regs.TASKS_START && data != 0) {
     regs.TASKS_STOP = 0;
     bhmTriggerEvent(startEventHandle);
     bhmPrintf("RTC START! (to be done)");
-  }
-  if ((Uns32*)user == &regs.TASKS_STOP && data != 0) {
+  } else if ((Uns32*)user == &regs.TASKS_STOP && data != 0) {
     regs.TASKS_START = 0;
     bhmPrintf("RTC STOP! (to be done)");
-  }
-  if ((Uns32*)user == &regs.TASKS_CLEAR) {
+  } else if ((Uns32*)user == &regs.TASKS_CLEAR) {
     bhmPrintf("CLEAR RTC counter!");
     resetCounter = 1;
-  }
-  if ((Uns32*)user == &regs.TASKS_TRIGOVRFLW) {
+  } else if ((Uns32*)user == &regs.TASKS_TRIGOVRFLW) {
     bhmPrintf("RTC COUNTER OVERFLOW!");
     counter = 0xFFFFF0;
-  }
-
-  if ((Uns32*)user == &regs.EVENTS_TICK) {
+  } else if ((Uns32*)user == &regs.EVENTS_TICK) {
     bhmPrintf("RTC tick event write!");
     ppmWriteNet(rtcNotificationHandle, RTC_PERIPHERAL_ID);
-  }
-  if ((Uns32*)user == &regs.EVENTS_OVRFLW) {
+  } else if ((Uns32*)user == &regs.EVENTS_OVRFLW) {
     bhmPrintf("RTC overflow event write!");
     ppmWriteNet(rtcNotificationHandle, RTC_PERIPHERAL_ID);
-  }
-
-  if ((Uns32*)user == &regs.EVENTS_COMPARE0) {
-    bhmPrintf("COMPARE0 RTC write!");
+  } else if ((Uns32*)user >= &regs.EVENTS_COMPARE[0] && (Uns32*)user <= &regs.EVENTS_COMPARE[3]) {
+    Uns32 id = (Uns32*)user - &regs.EVENTS_COMPARE[0];
+    bhmPrintf("COMPARE[%d] RTC write!", id);
     ppmWriteNet(rtcNotificationHandle, RTC_PERIPHERAL_ID);
-  }
-  if ((Uns32*)user == &regs.EVENTS_COMPARE1) {
-    bhmPrintf("COMPARE1 RTC write!");
-    ppmWriteNet(rtcNotificationHandle, RTC_PERIPHERAL_ID);
-  }
-  if ((Uns32*)user == &regs.EVENTS_COMPARE2) {
-    bhmPrintf("COMPARE2 RTC write!");
-    ppmWriteNet(rtcNotificationHandle, RTC_PERIPHERAL_ID);
-  }
-  if ((Uns32*)user == &regs.EVENTS_COMPARE3) {
-    bhmPrintf("COMPARE3 RTC write!");
-    ppmWriteNet(rtcNotificationHandle, RTC_PERIPHERAL_ID);
-  }
-
-  if ((Uns32*)user == &regs.EVTEN) {
+  } else if ((Uns32*)user == &regs.EVTEN) {
     bhmPrintf("RTC EVTEN overwrite!");
-  }
-  if ((Uns32*)user == &regs.EVTENSET) {
+  } else if ((Uns32*)user == &regs.EVTENSET) {
     regs.EVTEN = regs.EVTEN | data;
     bhmPrintf("RTC EVTENSET! - 0x%08x\n", regs.EVTEN);
-  }
-  if ((Uns32*)user == &regs.EVTENCLR) {
+  } else if ((Uns32*)user == &regs.EVTENCLR) {
     /*
        0 0 -> 0
        0 1 -> 0
@@ -102,14 +75,12 @@ PPM_WRITE_CB(regWr32) {
      */
     regs.EVTEN = regs.EVTEN & (~data);
     bhmPrintf("RTC EVTENCLR!");
-  }
-  if ((Uns32*)user == &regs.INTENSET) {
+  } else if ((Uns32*)user == &regs.INTENSET) {
     irq = irq | data;
     regs.INTENSET = irq;
     regs.INTENCLR = irq;
     bhmPrintf("RTC INTENSET! irq - %d\n", irq);
-  }
-  if ((Uns32*)user == &regs.INTENCLR) {
+  } else if ((Uns32*)user == &regs.INTENCLR) {
     /*
        0 0 -> 0
        0 1 -> 0
@@ -120,27 +91,15 @@ PPM_WRITE_CB(regWr32) {
     regs.INTENSET = irq;
     regs.INTENCLR = irq;
     bhmPrintf("RTC INTENCLR!");
-  }
-
-  if ((Uns32*)user == &regs.PRESCALER) {
+  } else if ((Uns32*)user == &regs.PRESCALER) {
     bhmPrintf("RTC PRESCALER!");
     if (data < 0 || data > 4095) {
       bhmPrintf("unsupported RTC PRESCALER value = %d!", data);
       exit(1);
     }
-  }
-
-  if ((Uns32*)user == &regs.CC0) {
-    bhmPrintf("CC0 RTC write!");
-  }
-  if ((Uns32*)user == &regs.CC1) {
-    bhmPrintf("CC1 RTC write!");
-  }
-  if ((Uns32*)user == &regs.CC2) {
-    bhmPrintf("CC2 RTC write!");
-  }
-  if ((Uns32*)user == &regs.CC3) {
-    bhmPrintf("CC3 RTC write!");
+  } else if ((Uns32*)user >= &regs.CC[0] && (Uns32*)user <= &regs.CC[3]) {
+    Uns32 id = (Uns32*)user - &regs.CC[0];
+    bhmPrintf("CC[%d] RTC write!", id);
   }
 }
 
@@ -207,39 +166,17 @@ void loop() {
       }
       isOverflow = 0;
     }
-
-    if ((regs.EVTEN & (1 << 16)) != 0 && counter == regs.CC0 && skipCCMatch == 0) {
-      bhmPrintf("\n\n\n$$ RTC match cc0 \n\n\n");
-      regs.EVENTS_COMPARE0 = 1;
-      ppmWriteNet(rtcNotificationHandle, RTC_PERIPHERAL_ID);
-      if ((irq & (1 << 16)) != 0) {
-        triggerIrq();
-      }
-    }
-
-    if ((regs.EVTEN & (1 << 17)) != 0 && counter == regs.CC1 && skipCCMatch == 0) {
-      regs.EVENTS_COMPARE1 = 1;
-      ppmWriteNet(rtcNotificationHandle, RTC_PERIPHERAL_ID);
-      bhmPrintf("\n\n\n$$ RTC match cc1 \n\n\n");
-      if ((irq & (1 << 17)) != 0) {
-        bhmPrintf("\n\n\n$$ RTC match cc1 IRQ \n\n\n");
-        triggerIrq();
-      }
-    }
-
-    if ((regs.EVTEN & (1 << 18)) != 0 && counter == regs.CC2 && skipCCMatch == 0) {
-      regs.EVENTS_COMPARE2 = 1;
-      ppmWriteNet(rtcNotificationHandle, RTC_PERIPHERAL_ID);
-      if ((irq & (1 << 18)) != 0) {
-        triggerIrq();
-      }
-    }
-
-    if ((regs.EVTEN & (1 << 19)) != 0 && counter == regs.CC3 && skipCCMatch == 0) {
-      regs.EVENTS_COMPARE3 = 1;
-      ppmWriteNet(rtcNotificationHandle, RTC_PERIPHERAL_ID);
-      if ((irq & (1 << 19)) != 0) {
-        triggerIrq();
+    
+    Uns32 i;
+    const Uns32 signalBitOffset = 16;
+    for (i = 0; i < 4; i++) {
+      if ((regs.EVTEN & (1 << (signalBitOffset + i))) != 0 && counter == regs.CC[i] && skipCCMatch == 0) {
+        bhmPrintf("\n\n\n$$ RTC match CC[%d] \n\n\n", i);
+        regs.EVENTS_COMPARE[i] = 1;
+        ppmWriteNet(rtcNotificationHandle, RTC_PERIPHERAL_ID);
+        if ((irq & (1 << (signalBitOffset + i))) != 0) {
+          triggerIrq();
+        }
       }
     }
 

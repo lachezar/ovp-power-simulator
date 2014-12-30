@@ -14,10 +14,7 @@ typedef struct {                            /*!< RTC Structure                  
   Uns32 TASKS_TRIGOVRFLW;                   /*!< Set COUNTER to 0xFFFFFFF0.                                            */
   Uns32 EVENTS_TICK;                        /*!< Event on COUNTER increment.                                           */
   Uns32 EVENTS_OVRFLW;                      /*!< Event on COUNTER overflow.                                            */
-  Uns32 EVENTS_COMPARE0;                    /*!< Compare event on CC[n] match.                                         */
-  Uns32 EVENTS_COMPARE1;                    /*!< Compare event on CC[n] match.                                         */
-  Uns32 EVENTS_COMPARE2;                    /*!< Compare event on CC[n] match.                                         */
-  Uns32 EVENTS_COMPARE3;                    /*!< Compare event on CC[n] match.                                         */
+  Uns32 EVENTS_COMPARE[4];                  /*!< Compare event on CC[n] match.                                         */
   Uns32 INTENSET;                           /*!< Interrupt enable set register.                                        */
   Uns32 INTENCLR;                           /*!< Interrupt enable clear register.                                      */
   Uns32 EVTEN;                              /*!< Configures event enable routing to PPI for each RTC event.            */
@@ -28,10 +25,7 @@ typedef struct {                            /*!< RTC Structure                  
   Uns32 COUNTER;                            /*!< Current COUNTER value.                                                */
   Uns32 PRESCALER;                          /*!< 12-bit prescaler for COUNTER frequency (32768/(PRESCALER+1)).
                                                          Must be written when RTC is STOPed.                                   */
-  Uns32 CC0;                                /*!< Capture/compare registers.                                            */
-  Uns32 CC1;                                /*!< Capture/compare registers.                                            */
-  Uns32 CC2;                                /*!< Capture/compare registers.                                            */
-  Uns32 CC3;                                /*!< Capture/compare registers.                                            */
+  Uns32 CC[4];                                /*!< Capture/compare registers.                                            */
   Uns32 POWER;                              /*!< Peripheral power control.                                             */
 } rtcRegs;
 
