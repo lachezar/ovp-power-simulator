@@ -268,7 +268,7 @@ static void simulate_custom_platform(icmProcessorP processor) {
           
     stopPendingRngIrq(rngNet);
    
-    run_ppi(processor);
+    runPPI(processor);
     
     if (tick > 16000000 / 2) break;
   } 

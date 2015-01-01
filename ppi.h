@@ -26,7 +26,6 @@ ICM_MEM_READ_FN(extMemReadPPICB);
 ICM_MEM_WRITE_FN(extMemWritePPICB);
 NET_WRITE_FN(intPPINetWritten);
 
-void run_ppi(icmProcessorP processor);
-void sync_ppi_queue(Uns32 bitmask);
+void runPPI(icmProcessorP processor);
 
 #endif // __PPI_H

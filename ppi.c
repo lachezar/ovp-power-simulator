@@ -1,24 +1,26 @@
 #include "ppi.h"
 
-static Uns32 ppi_queue[16];
-static Uns32 ppi_queue_size = 0;
+static Uns32 ppiQueue[16];
+static Uns32 ppiQueueSize = 0;
 static NRF_PPI_Type ppi;
-static Uns32 should_run_ppi = 0;
+static Uns32 shouldRunPPI = 0;
 
-void run_ppi(icmProcessorP processor) {
+static void syncPPIQueue(Uns32 bitmask);
+
+void runPPI(icmProcessorP processor) {
   
-  if (should_run_ppi == 0) {
+  if (shouldRunPPI == 0) {
     return;
   }
   icmPrintf("**** should run ppi\n");
-  should_run_ppi = 0;
+  shouldRunPPI = 0;
   
   Uns32 i, j;
   Uns32 data;
   const Uns32 signal = 1;
   
-  for (i = 0; i < ppi_queue_size; i++) {
-    j = ppi_queue[i];
+  for (i = 0; i < ppiQueueSize; i++) {
+    j = ppiQueue[i];
     PPI_CH_Type ppich = ppi.CH[j];
 
     if (ppich.EEP != 0 && ppich.TEP != 0 && (ppi.CHEN & (1 << j)) != 0) {
@@ -34,19 +36,19 @@ void run_ppi(icmProcessorP processor) {
   }
 }
 
-void sync_ppi_queue(Uns32 bitmask) {
-  ppi_queue_size = 0;
+void syncPPIQueue(Uns32 bitmask) {
+  ppiQueueSize = 0;
   Uns32 i;
   for (i = 0; i < 16; i++) {
     if ((bitmask & (1 << i)) != 0) {
-      ppi_queue[ppi_queue_size++] = i;
+      ppiQueue[ppiQueueSize++] = i;
     }
   } 
 }
 
 NET_WRITE_FN(intPPINetWritten) {
   icmPrintf("@@@ Trigger PPI Nets with value = %d\n", value);
-  should_run_ppi = value;
+  shouldRunPPI = value;
 }
 
 ICM_MEM_READ_FN(extMemReadPPICB) {
@@ -68,7 +70,7 @@ ICM_MEM_WRITE_FN(extMemWritePPICB) {
   if ((Uns32)address == 0x4001f504) { // PPI Channel enable set
     ppi.CHENSET = *(Uns32*)value;
     ppi.CHEN |= *(Uns32*)value;
-    sync_ppi_queue(ppi.CHEN);
+    syncPPIQueue(ppi.CHEN);
     icmPrintf("Write to PPI CHENSET\n");
   } else if ((Uns32)address >= 0x4001f510 && (Uns32)address <= 0x4001f58c) { // PPI CHANNEL
     Uns32 id = ((Uns32)address - 0x4001f510) / 8;
@@ -86,7 +88,7 @@ ICM_MEM_WRITE_FN(extMemWritePPICB) {
     icmPrintf("Write to PPI CHG[%d] (group!!!)\n", id);
   } else if ((Uns32)address == 0x4001f508) { // PPI Channel clear
     ppi.CHEN &= ~(*(Uns32*)value);
-    sync_ppi_queue(ppi.CHEN);
+    syncPPIQueue(ppi.CHEN);
     icmPrintf("Write to PPI CHENCLR ");    
   } else {
     icmPrintf("********** Not handled mem location for writing - PPI - 0x%08x\n", (Uns32)address);
