@@ -6,9 +6,9 @@
 
 #include "icm/icmCpuManager.h"
 
-void init_rng();
-void start_pending_rng_irq(icmNetP rngNet);
-void stop_pending_rng_irq(icmNetP rngNet);
+void initRng();
+void startPendingRngIrq(icmNetP rngNet);
+void stopPendingRngIrq(icmNetP rngNet);
 
 ICM_MEM_READ_FN(extMemReadRNGCB);
 ICM_MEM_WRITE_FN(extMemWriteRNGCB);

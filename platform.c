@@ -6,7 +6,7 @@
 #include "hexLoader.h"
 #include "cycles_table.h"
 #include "ppi.h"
-#include "common_peripherals.h"
+#include "commonPeripherals.h"
 
 //#define TRACE 1
 
@@ -197,7 +197,7 @@ int main(int argc, char ** argv) {
 
 static void simulate_custom_platform(icmProcessorP processor) {
   
-  init_rng();
+  initRng();
   
   Uns32 currentPC = 0, prevPC = 0;
   unsigned char is_branch = 0;
@@ -206,7 +206,7 @@ static void simulate_custom_platform(icmProcessorP processor) {
   Uns32 tick = 0;
   for (tick = 0; rtnVal == ICM_SR_SCHED || rtnVal == ICM_SR_HALT; tick++) {
     
-    start_pending_rng_irq(rngNet);
+    startPendingRngIrq(rngNet);
 
     if (rtnVal == ICM_SR_SCHED) {
       icmPrintf("%f -> 0x%08x\n", (double)tick * TIME_SLICE, currentPC);
@@ -266,7 +266,7 @@ static void simulate_custom_platform(icmProcessorP processor) {
     if (dbg_status) icmDumpRegisters(processor);
     #endif
           
-    stop_pending_rng_irq(rngNet);
+    stopPendingRngIrq(rngNet);
    
     run_ppi(processor);
     

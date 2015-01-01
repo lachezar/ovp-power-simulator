@@ -1,29 +1,29 @@
-#include "common_peripherals.h"
+#include "commonPeripherals.h"
 
-static Uns32 should_start_rng_int = 0;
-static Uns32 should_stop_rng_int = 0;
-static Uns32 rng_started = 0;
-static Uns32 rng_irq_enabled = 0;
+static Uns32 shouldStartRngInt = 0;
+static Uns32 shouldStopRngInt = 0;
+static Uns32 rngStarted = 0;
+static Uns32 rngIrqEnabled = 0;
 
-void init_rng() {
+void initRng() {
   srand(time(NULL));
 }
 
-void start_pending_rng_irq(icmNetP rngNet) {
-  if (should_start_rng_int != 0) {
+void startPendingRngIrq(icmNetP rngNet) {
+  if (shouldStartRngInt != 0) {
     icmPrintf("****RNG IRQ SIGNAL STARTED\n");
     icmWriteNet(rngNet, 1);
-    should_start_rng_int = 0;
-    should_stop_rng_int = 5; // no idea why 5!
+    shouldStartRngInt = 0;
+    shouldStopRngInt = 5; // no idea why 5!
   }
 }
 
-void stop_pending_rng_irq(icmNetP rngNet) {
-  if (should_stop_rng_int > 1) {
-    should_stop_rng_int--;
-  } else if (should_stop_rng_int != 0) {
+void stopPendingRngIrq(icmNetP rngNet) {
+  if (shouldStopRngInt > 1) {
+    shouldStopRngInt--;
+  } else if (shouldStopRngInt != 0) {
     icmWriteNet(rngNet, 0);
-    should_stop_rng_int = 0;
+    shouldStopRngInt = 0;
     icmPrintf("****RNG IRQ SIGNAL STOPPED\n");
   }
 }
@@ -50,25 +50,25 @@ ICM_MEM_READ_FN(extMemReadRNGCB) {
 
 ICM_MEM_WRITE_FN(extMemWriteRNGCB) {
   if ((Uns32)address == 0x4000d000) {
-    rng_started = *(Uns32*)value;
+    rngStarted = *(Uns32*)value;
     icmPrintf("\nRNG START - %d\n", *(Uns32*)value);
-    if (rng_irq_enabled != 0 && rng_started != 0) {
-      should_start_rng_int = 1;
+    if (rngIrqEnabled != 0 && rngStarted != 0) {
+      shouldStartRngInt = 1;
       icmPrintf("\nRNG SHOULD START IRQ\n");
     }
   } else if ((Uns32)address == 0x4000d304) {
-    rng_irq_enabled = *(Uns32*)value;
+    rngIrqEnabled = *(Uns32*)value;
     icmPrintf("\nRNG IRQ SET - %d\n", *(Uns32*)value);
   } else if ((Uns32)address == 0x4000d100) {
-    if (*(Uns32*)value == 0 && rng_irq_enabled != 0 && rng_started != 0) {
-      should_start_rng_int = 1;
+    if (*(Uns32*)value == 0 && rngIrqEnabled != 0 && rngStarted != 0) {
+      shouldStartRngInt = 1;
       icmPrintf("\nRNG SHOULD START IRQ\n");
     }
     icmPrintf("\nRNG VALUE READY - %d\n", *(Uns32*)value);
   } else if ((Uns32)address == 0x4000dffc) {
     icmPrintf("\nRNG POWER - %d\n", *(Uns32*)value);
   } else if ((Uns32)address == 0x4000d004) {
-    rng_started = 0;
+    rngStarted = 0;
     icmPrintf("\nRNG STOP - %d\n", *(Uns32*)value);
   } else {
     icmPrintf("********** Not handled mem location writing - RNG - 0x%08x\n", (Uns32)address);
