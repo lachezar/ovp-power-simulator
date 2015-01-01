@@ -3,7 +3,7 @@
 
 #include "icm/icmCpuManager.h"
 #include "platform.h"
-#include "hex_loader.h"
+#include "hexLoader.h"
 #include "cycles_table.h"
 #include "ppi.h"
 #include "common_peripherals.h"
@@ -167,7 +167,7 @@ int main(int argc, char ** argv) {
     // Load Hex file into Simulator Memory
     char *dot = strrchr(application, '.');
     if (dot && !strcmp(dot, ".hex")) {      
-      if (load_hex_file(processor, (char*)application) != 0) {
+      if (loadHexFile(processor, (char*)application) != 0) {
           icmPrintf("Hex File Load of %s Failed\n", application);
           icmTerminate();
           return -1;

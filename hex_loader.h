@@ -1,1 +1,0 @@
-int load_hex_file(icmProcessorP processor, char *fileName);

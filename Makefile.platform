@@ -88,7 +88,7 @@ endif
 		$(WRITEHEADER)			            \
 		--overwrite
 
-$(WORKDIR)/$(EXECUTABLE): $(PLATOBJ) $(OBJDIR)/hex_loader.o $(OBJDIR)/cycles_table.o $(OBJDIR)/ppi.o $(OBJDIR)/common_peripherals.o # make it general
+$(WORKDIR)/$(EXECUTABLE): $(PLATOBJ) $(OBJDIR)/hexLoader.o $(OBJDIR)/cycles_table.o $(OBJDIR)/ppi.o $(OBJDIR)/common_peripherals.o # make it general
 	$(V) mkdir -p $(@D)
 	@    echo "# Host Linking Platform $@"
 	$(V) sleep 1
@@ -100,7 +100,7 @@ ifeq ($(COPYXML),1)
 endif
 
 
-$(WORKDIR)/$(SHAREDOBJ): $(PLATOBJ) $(OBJDIR)/hex_loader.o $(OBJDIR)/cycles_table.o $(OBJDIR)/ppi.o $(OBJDIR)/common_peripherals.o # make it general
+$(WORKDIR)/$(SHAREDOBJ): $(PLATOBJ) $(OBJDIR)/hexLoader.o $(OBJDIR)/cycles_table.o $(OBJDIR)/ppi.o $(OBJDIR)/common_peripherals.o # make it general
 	$(V) mkdir -p $(@D)
 	@    echo "# Host Linking Platform object $@"
 	$(V) strace $(CC) -shared -o $@ $^ $(SIM_LDFLAGS) $(LDFLAGS) $(IMPERAS_ICMSTUBS)
