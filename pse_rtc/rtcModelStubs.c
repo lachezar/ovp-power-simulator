@@ -123,7 +123,7 @@ static void updateIrqLines() {
     irqAsserted = 1;
     shouldTriggerIrq = 0;
     bhmPrintf("\n$$$$$ RTC IRQ ON \n");
-    bhmWaitDelay(50.0);
+    bhmWaitDelay(5.0);
     ppmWriteNet(irqHandle, 0);
     irqAsserted = 0;
     bhmPrintf("\n$$$$$ RTC IRQ OFF \n");

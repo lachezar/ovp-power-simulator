@@ -3,6 +3,8 @@
 
 #include "icm/icmCpuManager.h"
 
+#define PPI_CHANNELS_COUNT 16
+
 typedef struct {
   Uns32  EN;                                /*!< Enable channel group.                                                 */
   Uns32  DIS;                               /*!< Disable channel group.                                                */

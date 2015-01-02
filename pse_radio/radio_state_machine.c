@@ -18,7 +18,7 @@ radio_state_t transit(radio_state_t state, radio_token_t token) {
     return RADIO_STATE_STATE_TxIdle;
   } else if (state == RADIO_STATE_STATE_Tx && token == END) {
     return RADIO_STATE_STATE_TxIdle;
-  } else if (state == RADIO_STATE_STATE_TxDisable && token == DISABLED_EVENT) {
+  } else if (state == RADIO_STATE_STATE_TxDisable && token == FULLY_DISABLED) {
     return RADIO_STATE_STATE_Disabled;
 
   } else if (state == RADIO_STATE_STATE_Disabled && token == RXEN) {
@@ -37,7 +37,7 @@ radio_state_t transit(radio_state_t state, radio_token_t token) {
     return RADIO_STATE_STATE_RxIdle;
   } else if (state == RADIO_STATE_STATE_Rx && token == END) {
     return RADIO_STATE_STATE_RxIdle;
-  } else if (state == RADIO_STATE_STATE_RxDisable && token == DISABLED_EVENT) {
+  } else if (state == RADIO_STATE_STATE_RxDisable && token == FULLY_DISABLED) {
     return RADIO_STATE_STATE_Disabled;
   }
   

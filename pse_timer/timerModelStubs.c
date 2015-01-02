@@ -8,6 +8,7 @@ static Uns32 ticks = 0;
 static Uns32 irq = 0;
 static Uns32 shouldTriggerIrq = 0;
 static Uns32 isStarted = 0;
+static Uns32 skipCCMatch[4];
 
 //
 // View any 32-bit register
@@ -45,6 +46,8 @@ PPM_WRITE_CB(regWr32) {
     isStarted = 0;
     regs.TASKS_START = 0;
     bhmPrintf("TIMER STOP! (to be done)");
+  } else if ((Uns32*)user == &regs.POWER && data != 0) {
+    // power on
   } else if ((Uns32*)user == &regs.POWER && data == 0) {
     isStarted = 0;
     regs.TASKS_STOP = 1;
@@ -64,6 +67,7 @@ PPM_WRITE_CB(regWr32) {
     ticks = 0;
   } else if ((Uns32*)user >= &regs.TASKS_CAPTURE[0] && (Uns32*)user <= &regs.TASKS_CAPTURE[3]) {
     Uns32 id = (Uns32*)user - &regs.TASKS_CAPTURE[0];
+    skipCCMatch[id] = 1;
     regs.CC[id] = ticks;
     bhmPrintf("CAPTURE[%d] TIMER ticks!", id);
   } else if ((Uns32*)user >= &regs.EVENTS_COMPARE[0] && (Uns32*)user <= &regs.EVENTS_COMPARE[3]) {
@@ -96,7 +100,7 @@ PPM_WRITE_CB(regWr32) {
     Uns32 id = (Uns32*)user - &regs.CC[0];
     bhmPrintf("CC[%d] TIMER write!", id);
   } else {
-    bhmPrintf("\n\n\nTIMER0 unsupported memory write!\n\n\n");
+    bhmPrintf("\n\n\nTIMER0 unsupported memory write! 0x%08x \n\n\n", (Uns32)addr - (Uns32)timerWindow);
     exit(1);
   }
 }
@@ -122,7 +126,7 @@ static void updateIrqLines() {
     bhmPrintf("\n$$$$$ TIMER IRQ ON \n");
     ppmWriteNet(irqHandle, 1);
     shouldTriggerIrq = 0;
-    bhmWaitDelay(50.0);
+    bhmWaitDelay(5.0);
     ppmWriteNet(irqHandle, 0);
     bhmPrintf("\n$$$$$ TIMER IRQ OFF \n");
   }
@@ -138,14 +142,15 @@ void loop() {
 
     const Uns32 signalBitOffset = 8;
     const Uns32 irqBitOffset = 16;
+    Uns32 resetTicks = 0;
     Uns32 i;
     for (i = 0; i < 4; i++) {
-      if (ticks == regs.CC[i]) {
+      if (ticks == regs.CC[i] && skipCCMatch[i] == 0) {
         bhmPrintf("\n\n$$$$$ Timer CC[%d] match\n", i);
         regs.EVENTS_COMPARE[i] = 1;
         ppmWriteNet(timer0NotificationHandle, TIMER0_PERIPHERAL_ID);
         if ((regs.SHORTS & (1 << i)) != 0) {
-          ticks = 0;
+          resetTicks = 1;
         }
         if ((regs.SHORTS & (1 << (signalBitOffset + i))) != 0) {
           regs.TASKS_STOP = 1;
@@ -157,6 +162,8 @@ void loop() {
           triggerIrq();
         }
       }
+      
+      skipCCMatch[i] = 0;
     }
 
     if (regs.TASKS_STOP == 1 && regs.TASKS_START == 0) {
@@ -164,7 +171,7 @@ void loop() {
       continue;
     }
 
-    //bhmPrintf("\n\n\n$$$$$ loop ticks = %d, cc0 = %d, cc1 = %d \n\n\n", ticks, regs.CC0, regs.CC1);
+    bhmPrintf("\n\n\n$$$$$ loop ticks = %d, cc[0] = %d, cc[1] = %d, cc[2] = %d, cc[3] = %d \n\n\n", ticks, regs.CC[0], regs.CC[1], regs.CC[2], regs.CC[3]);
 
     updateIrqLines();
 
@@ -177,6 +184,11 @@ void loop() {
       ticks = ticks & 0xFF;
     } else if (regs.BITMODE == 2) {
       ticks = ticks & 0xFFFFFF;
+    }
+
+    if (resetTicks == 1) {
+      bhmPrintf("\n\n\n$$$$$ Timer reset ticks!!!\n\n\n");
+      ticks = 0;
     }
 
     bhmWaitDelay( 1000000.0 / (double)(16000000 >> regs.PRESCALER)); // in uS

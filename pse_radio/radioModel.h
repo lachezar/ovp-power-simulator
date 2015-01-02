@@ -9,6 +9,8 @@
 #define __I
 #define __IO
 
+#define RADIO_PERIPHERAL_ID 0x1
+
 typedef struct { /*!< RADIO Structure                                                       */
   __O Uns32 TASKS_TXEN;                          /*!< Enable radio in TX mode.                                              */
   __O Uns32 TASKS_RXEN;                          /*!< Enable radio in RX mode.                                              */

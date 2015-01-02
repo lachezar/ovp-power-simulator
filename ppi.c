@@ -1,6 +1,7 @@
 #include "ppi.h"
 
-static Uns32 ppiQueue[16];
+static Uns32 ppiQueue[PPI_CHANNELS_COUNT];
+static Uns32 ppiQueueProcessed[PPI_CHANNELS_COUNT];
 static Uns32 ppiQueueSize = 0;
 static NRF_PPI_Type ppi;
 static Uns32 shouldRunPPI = 0;
@@ -28,9 +29,18 @@ void runPPI(icmProcessorP processor) {
       icmReadProcessorMemory(processor, ppich.EEP, &data, 4);
 
       if (data != 0) {
-        // write 1 to ppich.TEP address
-        icmWriteProcessorMemory(processor, ppich.TEP, &signal, 4);
-        icmPrintf("****PPI CONNECTION DONE! EEP 0x%08x -> TEP 0x%08x\n", ppich.EEP, ppich.TEP);
+        
+        if (ppiQueueProcessed[j] == 0) {
+          // write 1 to ppich.TEP address
+          icmWriteProcessorMemory(processor, ppich.TEP, &signal, 4);
+          icmPrintf("****PPI CONNECTION DONE! EEP 0x%08x -> TEP 0x%08x\n", ppich.EEP, ppich.TEP);
+        } else {
+          icmPrintf("****PPI ALREADY TRIGGERED! EEP 0x%08x -> TEP 0x%08x\n", ppich.EEP, ppich.TEP);
+        }
+        ppiQueueProcessed[j] = 1;
+
+      } else {
+        ppiQueueProcessed[j] = 0;
       }
     }
   }
@@ -39,7 +49,7 @@ void runPPI(icmProcessorP processor) {
 void syncPPIQueue(Uns32 bitmask) {
   ppiQueueSize = 0;
   Uns32 i;
-  for (i = 0; i < 16; i++) {
+  for (i = 0; i < PPI_CHANNELS_COUNT; i++) {
     if ((bitmask & (1 << i)) != 0) {
       ppiQueue[ppiQueueSize++] = i;
     }
@@ -73,17 +83,20 @@ ICM_MEM_WRITE_FN(extMemWritePPICB) {
     syncPPIQueue(ppi.CHEN);
     icmPrintf("Write to PPI CHENSET\n");
   } else if ((Uns32)address >= 0x4001f510 && (Uns32)address <= 0x4001f58c) { // PPI CHANNEL
-    Uns32 id = ((Uns32)address - 0x4001f510) / 8;
+    Uns32 id = ((Uns32)address - 0x4001f510) / (2 * sizeof(Uns32));
     
-    if ((Uns32)address % 8 == 0) {  
+    if ((Uns32)address % (2 * sizeof(Uns32)) == 0) {  
       ppi.CH[id].EEP = (*(Uns32*)value);
       icmPrintf("Write to PPI CH[%d] EEP\n", id);
     } else {
       ppi.CH[id].TEP = (*(Uns32*)value);
       icmPrintf("Write to PPI CH[%d] TEP\n", id);
     }
+    
+    ppiQueueProcessed[id] = 0;
+    
   } else if ((Uns32)address >= 0x4001f800 && (Uns32)address <= 0x4001f80c) { // PPI Channel group configuration 
-    Uns32 id = ((Uns32)address - 0x4001f800) / 4;
+    Uns32 id = ((Uns32)address - 0x4001f800) / sizeof(Uns32);
     ppi.CHG[id] = (*(Uns32*)value);
     icmPrintf("Write to PPI CHG[%d] (group!!!)\n", id);
   } else if ((Uns32)address == 0x4001f508) { // PPI Channel clear
