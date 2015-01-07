@@ -11,6 +11,14 @@ static void triggerIrq() {
   shouldTriggerIrq = 1;
 }
 
+inline static Uns32 irqPredicate(radio_token_t token, Uns32 intenset) { // @TODO implemented event based interrupts (0x20, 0x40, 0x80, 0x400)
+  return ((token == FULLY_DISABLED || token == DISABLE) && (intenset & 0x10) != 0)
+        || (token == READY && (intenset & 1) != 0)
+        || (token == ADDRESS && (intenset & 2) != 0)
+        || (token == PAYLOAD && (intenset & 4) != 0)
+        || (token == END && (intenset & 8) != 0);
+}
+
 static void updateIrqLines() {
   if (shouldTriggerIrq == 1) {
     shouldTriggerIrq = 0;
@@ -43,9 +51,39 @@ static void stateTransit(radio_token_t token) {
     regs.TASKS_DISABLE = 1;
     regs.TASKS_TXEN = 0;
     stateTransit(DISABLE); // disable state
+  } else if (token == FULLY_DISABLED && (regs.SHORTS & 4) != 0) { // not tested yet
+    bhmPrintf("\n$$$ Radio SHORTS trigger TXEN\n");
+    regs.TASKS_DISABLE = 0;
+    regs.TASKS_TXEN = 1;
+    stateTransit(TXEN); // txen state
+  } else if (token == FULLY_DISABLED && (regs.SHORTS & 8) != 0) { // not tested yet
+    bhmPrintf("\n$$$ Radio SHORTS trigger RXEN\n");
+    regs.TASKS_DISABLE = 0;
+    regs.TASKS_RXEN = 1;
+    stateTransit(RXEN); // rxen state
+  } else if (token == ADDRESS && (regs.SHORTS & 0x10) != 0) { // not tested yet
+    bhmPrintf("\n$$$ Radio SHORTS trigger RSSISTART\n");
+    regs.TASKS_RSSISTART = 1;
+    regs.TASKS_RSSISTOP = 0;
+    //stateTransit(RXEN); // rxen state
+  } else if (token == END && (regs.SHORTS & 0x20) != 0) { // not tested yet
+    bhmPrintf("\n$$$ Radio SHORTS trigger START\n");
+    regs.TASKS_START = 1;
+    regs.TASKS_TXEN = 0;
+    stateTransit(START); // start state
+  } else if (token == ADDRESS && (regs.SHORTS & 0x40) != 0) { // not tested yet
+    bhmPrintf("\n$$$ Radio SHORTS trigger BCSTART\n");
+    regs.TASKS_BCSTART = 1;
+    regs.TASKS_BCSTOP = 0;
+    //stateTransit(RXEN); // rxen state
+  } else if (token == ADDRESS && (regs.SHORTS & 0x100) != 0) { // not tested yet
+    bhmPrintf("\n$$$ Radio SHORTS trigger RSSISTOP\n");
+    regs.TASKS_RSSISTOP = 1;
+    regs.TASKS_RSSISTART = 0;
+    //stateTransit(RXEN); // rxen state
   }
 
-  if ((token == FULLY_DISABLED || token == DISABLE) && (regs.INTENSET & 0x10) != 0) {
+  if (irqPredicate(token, regs.INTENSET)) {
     triggerIrq();
   }
 }
