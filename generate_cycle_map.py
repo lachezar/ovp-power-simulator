@@ -1,5 +1,7 @@
 import re
 
+MULS_CYCLES = 1 # could be 32 if no hardware support
+
 def parse_dis_line(line):
   stripped_comment_line = re.sub(r';.*$', '', line)
   parsed_line = re.match(r'^\s*([0-9a-f]+):\s*[0-9a-f]{4}(?:\s[0-9a-f]{4})?\s*\t([\w.]+)\s*(.*)$', stripped_comment_line)
@@ -26,7 +28,7 @@ def count_instruction_cycles(i):
   branch = False
 
   if i[1] == 'muls':
-    cycles = 32
+    cycles = MULS_CYCLES
   elif i[1] == 'pop':
     cycles = 1 + len(i[2].split(','))
     if 'pc' in i[2]:
