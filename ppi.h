@@ -3,7 +3,8 @@
 
 #include "icm/icmCpuManager.h"
 
-#define PPI_CHANNELS_COUNT 16
+#define PPI_CHANNELS_COUNT       16
+#define PPI_CHANNEL_GROUPS_COUNT 4
 
 typedef struct {
   Uns32  EN;                                /*!< Enable channel group.                                                 */
@@ -16,12 +17,12 @@ typedef struct {
 } PPI_CH_Type;
 
 typedef struct {                            /*!< PPI Structure                                                         */
-  PPI_TASKS_CHG_Type TASKS_CHG[4];          /*!< Channel group tasks.                                                  */
+  PPI_TASKS_CHG_Type TASKS_CHG[PPI_CHANNEL_GROUPS_COUNT]; /*!< Channel group tasks.                                    */
   Uns32  CHEN;                              /*!< Channel enable.                                                       */
   Uns32  CHENSET;                           /*!< Channel enable set.                                                   */
   Uns32  CHENCLR;                           /*!< Channel enable clear.                                                 */
-  PPI_CH_Type CH[16];                       /*!< PPI Channel.                                                          */
-  Uns32  CHG[4];                            /*!< Channel group configuration.                                          */
+  PPI_CH_Type CH[PPI_CHANNELS_COUNT];       /*!< PPI Channel.                                                          */
+  Uns32  CHG[PPI_CHANNEL_GROUPS_COUNT];     /*!< Channel group configuration.                                          */
 } NRF_PPI_Type;
 
 ICM_MEM_READ_FN(extMemReadPPICB);
@@ -30,4 +31,4 @@ NET_WRITE_FN(intPPINetWritten);
 
 void runPPI(icmProcessorP processor);
 
-#endif // __PPI_H
+#endif // _PPI_H
