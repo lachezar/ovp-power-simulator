@@ -1,6 +1,7 @@
 #include <stdio.h>
+#include <string.h>
 
-int load_table(const char* filename, unsigned char* table, int size) {
+int load_table(const char* filename, unsigned short* table, int size) {
   
   FILE *fp;
   fp = fopen(filename, "r");
@@ -9,9 +10,15 @@ int load_table(const char* filename, unsigned char* table, int size) {
     return -1;
   }
   
-  unsigned int address, cycles, branch;
+  unsigned int address, cycles, branch, memory_utilization;
+  char instruction_name[10];
   
-  while (!feof(fp) && fscanf(fp, "%x:%d:%d\n", &address, &cycles, &branch) == 3) {
+  while (!feof(fp) && fscanf(fp, "%x:%d:%d:%[^:]:%d\n", &address, &cycles, &branch, instruction_name, &memory_utilization) == 5) {
+    
+    if (strstr(instruction_name, "ldr") != NULL) {
+      cycles = cycles | 0x40;
+      cycles = cycles | (memory_utilization << 8);
+    }
     if (branch == 1) {
       cycles = cycles | 0x80;
     }
