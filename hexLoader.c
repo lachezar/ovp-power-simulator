@@ -43,16 +43,15 @@ Int32 loadHexFile(icmProcessorP processor, char *fileName) {
           return -1;
         }
       }
-    } /* NOT USED, but good to have a sample implementation */
-    /*else if (recordType == 3) {
+    } else if (recordType == 3) {
       // load CS:IP
-      Uns32 registers, csReg, ipReg;
+      Uns32 registers;
       fscanf(fp, "%08x", &registers);
       registers = switchEndianness(registers);
 
-      csReg = ((registers & 0xFFFF0000) >> 16);
-      ipReg = (registers & 0x0000FFFF);
-    }*/
+      //Uns32 cs = ((registers & 0xFFFF0000) >> 16);
+      //Uns32 ipReg = (registers & 0x0000FFFF);
+    }
     fscanf(fp, "%*02x\n");
   }
 
