@@ -171,7 +171,9 @@ void loop() {
       continue;
     }
 
-    bhmPrintf("\n\n\n$$$$$ loop ticks = %d, cc[0] = %d, cc[1] = %d, cc[2] = %d, cc[3] = %d \n\n\n", ticks, regs.CC[0], regs.CC[1], regs.CC[2], regs.CC[3]);
+    //if (ticks % 100 == 0) { // less output
+      bhmPrintf("$$$$$ loop ticks = %d, cc[0] = %d, cc[1] = %d, cc[2] = %d, cc[3] = %d \n", ticks, regs.CC[0], regs.CC[1], regs.CC[2], regs.CC[3]);
+    //}
 
     updateIrqLines();
 
