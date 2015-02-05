@@ -10,7 +10,7 @@ static const char *semihosting;
 static icmNetP timer0Net, rtcNet, rngNet, radioNet, radioPPINet, rtcPPINet, timer0PPINet;
 
 #define CYCLES_TABLE_SIZE 0xC000
-static unsigned char cycles_table[CYCLES_TABLE_SIZE];
+static unsigned short cycles_table[CYCLES_TABLE_SIZE];
 
 
 #endif //_PLATFORM_H
