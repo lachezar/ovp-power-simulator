@@ -205,6 +205,8 @@ static void simulate_custom_platform(icmProcessorP processor) {
   unsigned char is_branch = 0;
   unsigned char is_flash = 0;
   unsigned char is_ldr = 0;
+  unsigned char is_str = 0;
+  unsigned char is_peripheral_access = 0;
   double TIME_SLICE = 1.0 / 16000000.0;
   icmStopReason rtnVal = ICM_SR_SCHED;
   Uns32 tick = 0;
@@ -212,7 +214,7 @@ static void simulate_custom_platform(icmProcessorP processor) {
 
     startPendingRngIrq(rngNet);
 
-    if (rtnVal == ICM_SR_SCHED) {
+    if (rtnVal == ICM_SR_SCHED && is_peripheral_access == 0) {
       if (is_ldr && is_flash) {
         icmPrintf("%f -> 0x%08x ldr_flash\n", (double)tick * TIME_SLICE, currentPC);
       } else {
@@ -236,15 +238,18 @@ static void simulate_custom_platform(icmProcessorP processor) {
     is_branch = 0;
     is_flash = 0;
     is_ldr = 0;
+    is_str = 0;
+    is_peripheral_access = 0;
     const Uns32 address = currentPC >> 1;
     if (address < CYCLES_TABLE_SIZE) {
-      cycles = cycles_table[address] & 0x3F;
+      cycles = cycles_table[address] & 0x1F;
       is_branch = ((cycles_table[address] & 0x80) != 0);
       is_ldr = ((cycles_table[address] & 0x40) != 0);
+      is_str = ((cycles_table[address] & 0x20) != 0);
 
-      if (is_ldr) {
+      if (is_ldr || is_str) {
         unsigned char reg_id = (cycles_table[address] >> 8) & 0xF;
-        if (reg_id == 0xF) {
+        if (is_ldr && reg_id == 0xF) {
           // loaded from flash
           is_flash = 1;
         } else {
@@ -254,6 +259,11 @@ static void simulate_custom_platform(icmProcessorP processor) {
           sprintf(register_name_buffer, "r%d", reg_id);
           icmReadReg(processor, register_name_buffer, &reg);
           is_flash = (reg < 0x20000000);
+
+          if (reg >= 0x40000000) {
+            // peripheral access - dont count it
+            is_peripheral_access = 1;
+          }
         }
       }
     }
@@ -297,7 +307,7 @@ static void simulate_custom_platform(icmProcessorP processor) {
 
     runPPI(processor);
 
-    if (tick > 0.5*16000000) break;
+    if (tick > 0.1*16000000) break;
   }
 }
 

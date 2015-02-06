@@ -29,12 +29,21 @@ void stopPendingRngIrq(icmNetP rngNet) {
 }
 
 ICM_MEM_READ_FN(extMemReadRNGCB) {
+  static Uns32 vlrdy_counter = 0;
   Uns32 data = 0;
   if ((Uns32)address == 0x4000d100) {
-    data = 1;
+    if (vlrdy_counter > 0x180) { // it takes roughly 380 cycles (24us) until the random value is generated 
+      data = 1;
+      vlrdy_counter = 0;
+    } else {
+      data = 0;
+      vlrdy_counter++;
+    }
+    icmPrintf("0.0 -> 0x%08x r\n", (Uns32)address);
   } else if ((Uns32)address == 0x4000d508) {
     data = rand();
     icmPrintf("\nRNG RAND GENERATED and READ - %d\n", data);
+    icmPrintf("0.0 -> 0x%08x r\n", (Uns32)address);
   } else {
     icmPrintf("********** Not handled mem location - RNG - 0x%08x\n", (Uns32)address);
     icmTerminate();
@@ -65,6 +74,7 @@ ICM_MEM_WRITE_FN(extMemWriteRNGCB) {
       icmPrintf("\nRNG SHOULD START IRQ\n");
     }
     icmPrintf("\nRNG VALUE READY - %d\n", *(Uns32*)value);
+    icmPrintf("0.0 -> 0x%08x w\n", (Uns32)address);
   } else if ((Uns32)address == 0x4000dffc) {
     icmPrintf("\nRNG POWER - %d\n", *(Uns32*)value);
   } else if ((Uns32)address == 0x4000d004) {

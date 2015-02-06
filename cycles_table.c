@@ -18,6 +18,8 @@ int load_table(const char* filename, unsigned short* table, int size) {
     if (strstr(instruction_name, "ldr") != NULL) {
       cycles = cycles | 0x40;
       cycles = cycles | (memory_utilization << 8);
+    } else if (strstr(instruction_name, "str") != NULL) {
+      cycles = cycles | 0x20;
     }
     if (branch == 1) {
       cycles = cycles | 0x80;

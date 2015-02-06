@@ -60,7 +60,7 @@ def count_instruction_cycles(i):
     branch = True
   elif i[1].startswith('ldr'):
     register_location = re.search(r'\[(\w+)(,|\])', i[2]).group(1)
-    if register_location in ('pc', 'sp'):
+    if register_location in ('pc', 'sp', 'ip'):
       ldr_location = 0xF
     else:
       ldr_location = int(register_location.strip('r'))

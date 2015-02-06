@@ -11,13 +11,13 @@ RESISTOR_VALUE = 15.0
 BRANCH_NOT_TAKEN_CURRENT = 58.8 / RESISTOR_VALUE
 
 def read_trace_log(filename):
-  pattern = re.compile(r'^(\d+.\d+) -> (0x[0-9a-f]+)( ldr_flash)?$')
+  pattern = re.compile(r'^(\d+.\d+) -> (0x[0-9a-f]+)\s*(ldr_flash|[rw])?$')
 
   with open(filename) as f:
     for line in f:
       instruction = re.match(pattern, line)
       if instruction is not None:
-        yield (float(instruction.group(1)), int(instruction.group(2), 16), instruction.group(3) is not None)
+        yield (float(instruction.group(1)), int(instruction.group(2), 16), instruction.group(3))
   
 def read_instructions_map(filename):
   pattern = re.compile(r'^([0-9a-f]+):(\d+):(\d+):(.+):(\d+)$')
@@ -40,14 +40,20 @@ def map_trace_log_to_instructions(trace_log, instructions_map):
   cycles_per_time_slot = dict()
   post_process_branch = False
   prev_address = 0
-  
-  for t, x, ldr_flash in trace_log:
+  slot_id = 0
+  for t, x, descriptor in trace_log:
     
     flash_current_value = flash_current(prev_address, x)
     prev_address = x
     instruction, cycles, is_branch = instructions_map.get(x, (None, None, None))
     if instruction is None:
+      if x > 0x40000000 and descriptor in ('w', 'r'):
+        peripheral_operation = "%x+%s" % (x, descriptor)
+        stats[peripheral_operation] = stats.get(peripheral_operation, 0) + 1
+        current_per_time_slot[slot_id] = current_per_time_slot.get(slot_id, 0.0) + peripheral_current(x, descriptor)
+        cycles_per_time_slot[slot_id] = cycles_per_time_slot.get(slot_id, 0) + 2
       continue
+
     stats[instruction] = stats.get(instruction, 0) + 1
     
     slot_id = int(float(t) / TIME_SLOT)
@@ -63,22 +69,22 @@ def map_trace_log_to_instructions(trace_log, instructions_map):
     
     if is_branch:
       post_process_branch = True
-      branch_current = current(instruction, cycles + 2, is_branch, ldr_flash) + flash_current_value
+      branch_current = current(instruction, cycles + 2, is_branch, descriptor) + flash_current_value
       branch_cycles = cycles + 2 # we keep the branch cycles as 1, but taken branches are 3 cycles
       continue # check branch state on the next instruction execution
 
-    current_per_time_slot[slot_id] = current_per_time_slot.get(slot_id, 0.0) + current(instruction, cycles, is_branch, ldr_flash) + flash_current_value
+    current_per_time_slot[slot_id] = current_per_time_slot.get(slot_id, 0.0) + current(instruction, cycles, is_branch, descriptor) + flash_current_value
     cycles_per_time_slot[slot_id] = cycles_per_time_slot.get(slot_id, 0) + cycles
 
   return (stats, current_per_time_slot, cycles_per_time_slot)
   
-def current(instruction, cycles, is_branch, ldr_flash):
+def current(instruction, cycles, is_branch, descriptor):
   resistor = RESISTOR_VALUE
   # I = U/R
-  avg_current = float(cycles) * instruction_avg_voltage(instruction, cycles, is_branch, ldr_flash) / resistor
+  avg_current = float(cycles) * instruction_avg_voltage(instruction, cycles, is_branch, descriptor) / resistor
   return avg_current
   
-def instruction_avg_voltage(instruction, cycles, is_branch, ldr_flash):
+def instruction_avg_voltage(instruction, cycles, is_branch, descriptor):
   if instruction.startswith('mul'):
     voltage = 57.0
   elif instruction.startswith('nop'):
@@ -97,7 +103,7 @@ def instruction_avg_voltage(instruction, cycles, is_branch, ldr_flash):
     voltage = 55.4
   elif instruction.startswith('push') or instruction.startswith('str') or instruction.startswith('stmia'):
     voltage = 62.0 - ((cycles - 2) * 3.6)
-  elif (instruction.startswith('ldr') or instruction.startswith('ldmia')) and ldr_flash:
+  elif (instruction.startswith('ldr') or instruction.startswith('ldmia')) and descriptor == 'ldr_flash':
     voltage = 86.4 - ((cycles - 2) * 3.6)
   elif instruction.startswith('pop') or instruction.startswith('ldr') or instruction.startswith('ldmia'):
     voltage = 52.8 - ((cycles - 2) * 3.6)
@@ -144,6 +150,17 @@ def flash_current(prev_address, current_address):
 
   return voltage / resistor
   
+def peripheral_current(address, access_type):
+  resistor = RESISTOR_VALUE
+  voltage = 0.0
+  if address == 0x4000d100 and access_type == 'r':
+    voltage = 35.0
+  elif address == 0x4000d508 and access_type == 'r':
+    voltage = 35.0
+  elif address == 0x4000d100 and access_type == 'w':
+    voltage = 52.0 # it is around 52 in fact, but the numbers don't match may be because we loop on EVT_VALRDY and this lowers the average current
+  return voltage / resistor
+
 def print_execution_stats(stats):
   executed_instructions = sum(stats.values())
   print 'Executed instructions stats:'
@@ -151,7 +168,7 @@ def print_execution_stats(stats):
     print x[0], x[1], "{0:.3f}%".format(100 * (x[1] / float(executed_instructions)))
     
 def print_current_log(current_per_time_slot, cycles_per_time_slot):
-  print 'Current (mA) used per time slot:'
+  print 'Current (mA) per time slot:'
   for i, x in current_per_time_slot.items():
     print "[{0:.3f}, {1:.3f}) -> {2:.5f}".format(i * TIME_SLOT, (i + 1) * TIME_SLOT, x / float(cycles_per_time_slot[i]))
   
