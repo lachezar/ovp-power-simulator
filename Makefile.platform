@@ -117,7 +117,7 @@ $(OBJDIR)/%.d: %.$(1)
 $(OBJDIR)/%.o: %.$(1)
 	$$(V) mkdir -p $$(@D)
 	@    echo "# Host Compiling Platform $$@"
-	@    echo "$$(V) $$(CC) -c -o $$@ $$< $$(SIM_CFLAGS) $$(CFLAGS)"
+	$$(V) echo "$$(V) $$(CC) -c -o $$@ $$< $$(SIM_CFLAGS) $$(CFLAGS)"
 	$$(V) strace $$(CC) -c -o $$@ $$< $$(SIM_CFLAGS) $$(CFLAGS)
 endef
 $(foreach X,$(SRC_SUFFIX),$(eval $(call SRC_SUFFIX_Template,$(X))))
@@ -128,4 +128,17 @@ clean::
 	$(V) - rm -rf $(OBJDIR)
 	$(V) - rm -f $(PLATFORM-SRC) $(PLATFORM-INC)
 	
+.PHONY : test
+
+test: CFLAGS += -DTESTING
+
+test: test_instructions_analyser.elf
+
+test_instructions_analyser.elf: $(OBJDIR)/instructions_analyser.o $(OBJDIR)/test_instructions_analyser.o
+	$(V) strace $(CC) -o $@ $^ $(SIM_LDFLAGS) $(LDFLAGS) $(IMPERAS_ICMSTUBS)
+
+.PHONY : clean_test
+clean_test:
+	- rm -f test_instructions_analyser.elf instructions_analyser.o test_instructions_analyser.o
+
 	
