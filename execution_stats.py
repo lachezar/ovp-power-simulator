@@ -44,7 +44,7 @@ def map_trace_log_to_instructions(trace_log, instructions_map):
   for t, x, descriptor in trace_log:
     
     flash_current_value = flash_current(prev_address, x)
-    prev_address = x
+    
     instruction, cycles, is_branch = instructions_map.get(x, (None, None, None))
     if instruction is None:
       if x > 0x40000000 and descriptor in ('w', 'r'):
@@ -52,6 +52,7 @@ def map_trace_log_to_instructions(trace_log, instructions_map):
         stats[peripheral_operation] = stats.get(peripheral_operation, 0) + 1
         current_per_time_slot[slot_id] = current_per_time_slot.get(slot_id, 0.0) + peripheral_current(x, descriptor)
         cycles_per_time_slot[slot_id] = cycles_per_time_slot.get(slot_id, 0) + 2
+        prev_address = x
       continue
 
     stats[instruction] = stats.get(instruction, 0) + 1
@@ -66,7 +67,9 @@ def map_trace_log_to_instructions(trace_log, instructions_map):
       else:
         current_per_time_slot[slot_id] = current_per_time_slot.get(slot_id, 0.0) + BRANCH_NOT_TAKEN_CURRENT
         cycles_per_time_slot[slot_id] = cycles_per_time_slot.get(slot_id, 0) + 1
-    
+
+    prev_address = x
+
     if is_branch:
       post_process_branch = True
       branch_current = current(instruction, cycles + 2, is_branch, descriptor) + flash_current_value
@@ -170,7 +173,7 @@ def print_execution_stats(stats):
 def print_current_log(current_per_time_slot, cycles_per_time_slot):
   print 'Current (mA) per time slot:'
   for i, x in current_per_time_slot.items():
-    print "[{0:.3f}, {1:.3f}) -> {2:.5f}".format(i * TIME_SLOT, (i + 1) * TIME_SLOT, x / float(cycles_per_time_slot[i]))
+    print "[{0:.3f}, {1:.3f}) -> {2:.5f} {3} {4}".format(i * TIME_SLOT, (i + 1) * TIME_SLOT, x / float(cycles_per_time_slot[i]), x, cycles_per_time_slot[i])
   
 if __name__ == '__main__':
   if len(sys.argv) >= 2:
