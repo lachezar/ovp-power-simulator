@@ -40,6 +40,7 @@ void test_meta_data() {
   assert(meta_data(LDR, "r1, [r2, #128]") == (2 << 11) + 128);
   assert(meta_data(LDR, "r1, [r2, r3]") == 0x8000 + (2 << 11) + 3);
   assert(meta_data(LDR, "r1, [pc, #4]") == (0xf << 11));
+  assert(meta_data(STR, "r2, [sp, #4]") == (0xe << 11));
 }
 
 void test_file_loading(const char* filename) {

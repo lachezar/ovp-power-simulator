@@ -95,7 +95,7 @@ Uns32 instructionCurrent(icmProcessorP processor, instruction_type_t instruction
   } else if (instruction_type == TST) {
     current = 3867; // uA
   } else if (instruction_type == MOV || instruction_type == MVN || instruction_type == NEG) {
-    current = 3760; // uA
+    current = 3800; // uA
   } else if (instruction_type == AND || instruction_type == EOR || instruction_type == BIC) {
     current = 3707; // uA
   } else if (instruction_type == LSL || instruction_type == LSR || instruction_type == ROR) {

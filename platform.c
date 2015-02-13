@@ -4,9 +4,11 @@
 #include "icm/icmCpuManager.h"
 #include "platform.h"
 #include "hexLoader.h"
-#include "cycles_table.h"
 #include "ppi.h"
 #include "commonPeripherals.h"
+#include "instructions_analyser.h"
+#include "currentUsage.h"
+#include "cycles_table.h"
 
 //#define TRACE 1
 
@@ -23,7 +25,12 @@ int main(int argc, char ** argv) {
 
   // read the arguments and set application, processorType and alternateVendor
   parseArgs(argc, argv);
-
+  
+  if (load("application.asm", table, TABLE_SIZE) != 0) {
+    icmPrintf("Error loading the application.asm file\n");
+    return -1;
+  }
+  
   if (load_table("cycles_map.txt", cycles_table, CYCLES_TABLE_SIZE) != 0) {
     icmPrintf("Could not load the instruction cycles table!\n");
     return -1;
@@ -202,7 +209,7 @@ static void simulate_custom_platform(icmProcessorP processor) {
   initRng();
 
   Uns32 currentPC = 0, prevPC = 0;
-  unsigned char is_branch = 0;
+  unsigned char isbranch = 0;
   unsigned char is_flash = 0;
   unsigned char is_ldr = 0;
   unsigned char is_str = 0;
@@ -216,12 +223,11 @@ static void simulate_custom_platform(icmProcessorP processor) {
 
     if (rtnVal == ICM_SR_SCHED && is_peripheral_access == 0) {
       if (is_ldr && is_flash) {
-        icmPrintf("%f -> 0x%08x ldr_flash\n", (double)tick * TIME_SLICE, currentPC);
+        //icmPrintf("%f -> 0x%08x ldr_flash\n", (double)tick * TIME_SLICE, currentPC);
       } else {
-        icmPrintf("%f -> 0x%08x\n", (double)tick * TIME_SLICE, currentPC);
+        //icmPrintf("%f -> 0x%08x\n", (double)tick * TIME_SLICE, currentPC);
       }
     }
-
 
     #ifdef TRACE
     Uns32 currentPC = (Uns32)icmGetPC(processor);
@@ -230,20 +236,27 @@ static void simulate_custom_platform(icmProcessorP processor) {
 
     prevPC = currentPC;
     currentPC = (Uns32)icmGetPC(processor);
-    if (rtnVal == ICM_SR_SCHED && is_branch != 0 && (/*prevPC + sizeof(int) != currentPC ||*/ prevPC + sizeof(short) != currentPC)) {
+    if (rtnVal == ICM_SR_SCHED && isbranch != 0 && (/*prevPC + sizeof(int) != currentPC ||*/ prevPC + sizeof(short) != currentPC)) {
       tick += 2;
     }
 
-    unsigned char cycles = 0;
-    is_branch = 0;
-    is_flash = 0;
+    isbranch = is_conditional_branch(currentPC, table);
+    
+    Uns32 instruction = get_instruction(currentPC, table);
+    instruction_type_t instruction_type = ((instruction >> 24) & 0xff);
+    unsigned char cycles = ((instruction >> 16) & 0xff);
+    Uns16 data = (instruction & 0xffff);
+    calculateAverageCurrent(processor, tick, currentPC, instruction_type, cycles, data);
+    
+    //is_flash = 0;
     is_ldr = 0;
     is_str = 0;
     is_peripheral_access = 0;
     const Uns32 address = currentPC >> 1;
-    if (address < CYCLES_TABLE_SIZE) {
-      cycles = cycles_table[address] & 0x1F;
-      is_branch = ((cycles_table[address] & 0x80) != 0);
+    //unsigned char cycles2;
+    if (address < TABLE_SIZE) {
+      //cycles2 = cycles_table[address] & 0x1F;
+      //is_branch = ((cycles_table[address] & 0x80) != 0);
       is_ldr = ((cycles_table[address] & 0x40) != 0);
       is_str = ((cycles_table[address] & 0x20) != 0);
 
@@ -307,7 +320,11 @@ static void simulate_custom_platform(icmProcessorP processor) {
 
     runPPI(processor);
 
-    if (tick > 0.1*16000000) break;
+    if (tick > 0.1*16000000) {
+      printAverageCurrentPerTimeSlot();
+      icmPrintf("ticks - %d\n", tick);
+      break;
+    }
   }
 }
 

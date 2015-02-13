@@ -42,7 +42,6 @@ int load(const char* filename, unsigned int* table, int size) {
       fprintf(fp2, "%x:%d:%d:%s:%d\n", address, cycles, is_branch(address, table), instruction_name, (data & 0x7fff) >> 11);
 #endif
 
-      //if (address == 0xda) return 0;
     } else {
       // error parsing line
     }
@@ -170,12 +169,17 @@ unsigned short meta_data(instruction_type_t instruction_type, const char* args) 
 
     char register_name[8];
     parts = sscanf(args, "%*s [%s", register_name);
-    if (instruction_type == LDR && parts == 1 && (strstr(register_name, "pc") != NULL || strstr(register_name, "ip") != NULL || strstr(register_name, "sp") != NULL || strstr(register_name, "lr") != NULL)) {
-      // check for pc, ip, sp, lr
-      result = (0xF << 11);
-      return result;
+    if (parts == 1) {
+      if (instruction_type == LDR && (strstr(register_name, "pc") != NULL || strstr(register_name, "ip") != NULL)) {
+        // check for pc, ip - flash
+        result = (0xF << 11);
+        return result;
+      } else if (strstr(register_name, "sp") != NULL || strstr(register_name, "lr") != NULL) {
+        // check for sp, lr - RAM
+        result = (0xE << 11);
+        return result;
+      }
     }
-
   }
   return -1;
 }
@@ -212,7 +216,9 @@ unsigned int calculate_cycles(instruction_type_t instruction_type, const char* a
   } else if (strstr(args, "pc") == args) {
     fprintf(stderr, "Register pc in the destination for %d %s\n", instruction_type, args);
     cycles = 3;
-  } else if (instruction_type == B || instruction_type == BNE || instruction_type == BEQ || instruction_type == BRANCH) {
+  } else if (instruction_type == B) {
+    cycles = 3;
+  } else if (instruction_type == BNE || instruction_type == BEQ || instruction_type == BRANCH) {
     cycles = 1; // 3 cycles - if branch is taken
   } else if (instruction_type == LDR || instruction_type == STR) {
     cycles = 2;
@@ -228,8 +234,14 @@ unsigned int calculate_cycles(instruction_type_t instruction_type, const char* a
   return cycles;
 }
 
-unsigned int is_branch(unsigned int address, unsigned int* table) {
+/*unsigned int is_branch(unsigned int address, unsigned int* table) {
   unsigned int instruction = get_instruction(address, table);
   instruction_type_t instruction_type = (instruction_type_t)(instruction >> 24);
   return instruction_type == B || instruction_type == BNE || instruction_type == BEQ || instruction_type == BRANCH || instruction_type == BL32;
+}*/
+
+unsigned int is_conditional_branch(unsigned int address, unsigned int* table) {
+  unsigned int instruction = get_instruction(address, table);
+  instruction_type_t instruction_type = (instruction_type_t)(instruction >> 24);
+  return instruction_type == BNE || instruction_type == BEQ || instruction_type == BRANCH;
 }

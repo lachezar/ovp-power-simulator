@@ -17,7 +17,9 @@ unsigned short meta_data(instruction_type_t instruction_type, const char* args);
 
 unsigned int get_instruction(unsigned int address, unsigned int* table);
 
-unsigned int is_branch(unsigned int address, unsigned int* table);
+//unsigned int is_branch(unsigned int address, unsigned int* table);
+unsigned int is_conditional_branch(unsigned int address, unsigned int* table);
+
 /*
 unsigned int is_ldr(unsigned int address);
 
