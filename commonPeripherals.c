@@ -219,6 +219,8 @@ ICM_MEM_WRITE_FN(extMemWriteClockCB) {
     icmPrintf("Write to Power - RAM on/off\n");
   } else if ((Uns32)address == 0x40000514) { // Power - POFCON - power failure config
     icmPrintf("Write to Power - POFCON - power failure config\n");
+  } else if ((Uns32) address == 0x40000550) { // change XTALFREQ
+    icmPrintf("Write to Power - 0x40000550\n");
   } else if ((Uns32) address == 0x40000554) { // XTALFREQ
     icmPrintf("Write to Clock - XTALFREQ\n");
   } else if ((Uns32)address == 0x4000000c) { // TASKS_LFCLKSTOP
