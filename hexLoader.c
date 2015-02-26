@@ -27,7 +27,7 @@ Int32 loadHexFile(icmProcessorP processor, char *fileName) {
         return -1;
       }
 
-      return 0;       // eof
+      return 0; // eof
       
     } else if (byteCount == 2 && recordType == 4) {
       fscanf(fp, "%04x", &baseAddress);

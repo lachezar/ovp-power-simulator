@@ -234,12 +234,6 @@ unsigned int calculate_cycles(instruction_type_t instruction_type, const char* a
   return cycles;
 }
 
-/*unsigned int is_branch(unsigned int address, unsigned int* table) {
-  unsigned int instruction = get_instruction(address, table);
-  instruction_type_t instruction_type = (instruction_type_t)(instruction >> 24);
-  return instruction_type == B || instruction_type == BNE || instruction_type == BEQ || instruction_type == BRANCH || instruction_type == BL32;
-}*/
-
 unsigned int is_conditional_branch(unsigned int address, unsigned int* table) {
   unsigned int instruction = get_instruction(address, table);
   instruction_type_t instruction_type = (instruction_type_t)(instruction >> 24);

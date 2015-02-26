@@ -23,19 +23,13 @@
 //
 int main(int argc, char ** argv) {
 
-  // read the arguments and set application, processorType and alternateVendor
   parseArgs(argc, argv);
-  
+ 
   if (load("application.asm", table, TABLE_SIZE) != 0) {
     icmPrintf("Error loading the application.asm file\n");
     return -1;
   }
   
-  if (load_table("cycles_map.txt", cycles_table, CYCLES_TABLE_SIZE) != 0) {
-    icmPrintf("Could not load the instruction cycles table!\n");
-    return -1;
-  }
-
   // initialize CpuManager
   icmInitPlatform(ICM_VERSION, ICM_VERBOSE|ICM_ENABLE_IMPERAS_INTERCEPTS|ICM_STOP_ON_CTRLC, 0, 0, "platform");
 
@@ -195,8 +189,6 @@ int main(int argc, char ** argv) {
 
   // Run the simulation
   simulate_custom_platform(processor);
-  //icmSetSimulationStopTime(2.2);
-  //icmSimulatePlatform();
 
   // free simulation data structures
   icmTerminate();
@@ -210,10 +202,6 @@ static void simulate_custom_platform(icmProcessorP processor) {
 
   Uns32 currentPC = 0, prevPC = 0;
   unsigned char isbranch = 0;
-  unsigned char is_flash = 0;
-  unsigned char is_ldr = 0;
-  unsigned char is_str = 0;
-  unsigned char is_peripheral_access = 0;
   double TIME_SLICE = 1.0 / 16000000.0;
   icmStopReason rtnVal = ICM_SR_SCHED;
   Uns32 tick = 0;
@@ -221,64 +209,28 @@ static void simulate_custom_platform(icmProcessorP processor) {
 
     startPendingRngIrq(rngNet);
 
-    if (rtnVal == ICM_SR_SCHED && is_peripheral_access == 0) {
-      if (is_ldr && is_flash) {
-        //icmPrintf("%f -> 0x%08x ldr_flash\n", (double)tick * TIME_SLICE, currentPC);
-      } else {
-        //icmPrintf("%f -> 0x%08x\n", (double)tick * TIME_SLICE, currentPC);
-      }
-    }
-
-    #ifdef TRACE
-    Uns32 currentPC = (Uns32)icmGetPC(processor);
-    const char* disassemble = icmDisassemble(processor, currentPC);
-    #endif
-
     prevPC = currentPC;
     currentPC = (Uns32)icmGetPC(processor);
-    if (rtnVal == ICM_SR_SCHED && isbranch != 0 && (/*prevPC + sizeof(int) != currentPC ||*/ prevPC + sizeof(short) != currentPC)) {
+    if (rtnVal == ICM_SR_SCHED && isbranch != 0 && (prevPC + sizeof(short) != currentPC)) {
       tick += 2;
     }
-
-    isbranch = is_conditional_branch(currentPC, table);
     
-    Uns32 instruction = get_instruction(currentPC, table);
-    instruction_type_t instruction_type = ((instruction >> 24) & 0xff);
-    unsigned char cycles = ((instruction >> 16) & 0xff);
-    Uns16 data = (instruction & 0xffff);
-    calculateAverageCurrent(processor, tick, currentPC, instruction_type, cycles, data);
+    //icmPrintf("%f -> 0x%08x\n", (double)tick * TIME_SLICE, currentPC);
+
+    isbranch = 0;
+    instruction_type_t instruction_type = 0;
+    unsigned char cycles = 1;
+    Uns16 data = 0xffff;
     
-    //is_flash = 0;
-    is_ldr = 0;
-    is_str = 0;
-    is_peripheral_access = 0;
-    const Uns32 address = currentPC >> 1;
-    //unsigned char cycles2;
-    if (address < TABLE_SIZE) {
-      //cycles2 = cycles_table[address] & 0x1F;
-      //is_branch = ((cycles_table[address] & 0x80) != 0);
-      is_ldr = ((cycles_table[address] & 0x40) != 0);
-      is_str = ((cycles_table[address] & 0x20) != 0);
-
-      if (is_ldr || is_str) {
-        unsigned char reg_id = (cycles_table[address] >> 8) & 0xF;
-        if (is_ldr && reg_id == 0xF) {
-          // loaded from flash
-          is_flash = 1;
-        } else {
-          // check value in the register
-          Uns32 reg;
-          char register_name_buffer[10];
-          sprintf(register_name_buffer, "r%d", reg_id);
-          icmReadReg(processor, register_name_buffer, &reg);
-          is_flash = (reg < 0x20000000);
-
-          if (reg >= 0x40000000) {
-            // peripheral access - dont count it
-            is_peripheral_access = 1;
-          }
-        }
-      }
+    if ((currentPC >> 1) < TABLE_SIZE) {
+      isbranch = is_conditional_branch(currentPC, table);
+      Uns32 instruction = get_instruction(currentPC, table);
+      instruction_type = ((instruction >> 24) & 0xff);
+      cycles = ((instruction >> 16) & 0xff);
+      data = (instruction & 0xffff);
+      calculateAverageCurrent(processor, tick, currentPC, instruction_type, cycles, data);
+    } else {
+      // put some default values in the case when code is executed from RAM... for now
     }
 
     if (rtnVal == ICM_SR_SCHED && cycles == 0) {
@@ -286,13 +238,6 @@ static void simulate_custom_platform(icmProcessorP processor) {
       icmPrintf(" (unknown instruction in the cycles table) : %s\n", disassemble);
       cycles = 1;
     }
-
-    /*if (rtnVal == ICM_SR_SCHED && (cnt % 10 == 0 || print == 1)) {
-       const char* disassemble = icmDisassemble(processor, currentPC);
-       icmPrintf(" : %s\n", disassemble);
-       icmDumpRegisters(processor);
-       }*/
-    // execute one instruction
 
     rtnVal = icmSimulate(processor, 1); // it could return "halt" on wfe?
     if (rtnVal != ICM_SR_SCHED) {
@@ -303,24 +248,11 @@ static void simulate_custom_platform(icmProcessorP processor) {
 
     icmAdvanceTime(((double)tick) * TIME_SLICE);
 
-    #ifdef TRACE
-    int dbg_status = (strstr(disassemble, "e7fe") == NULL && rtnVal == ICM_SR_SCHED);
-    if (dbg_status) {
-      // disassemble instruction at current PC
-      icmPrintf("0x%08x : %s\n", currentPC, disassemble);
-    }
-    #endif
-
-    #ifdef TRACE
-    // dump registers
-    if (dbg_status) icmDumpRegisters(processor);
-    #endif
-
     stopPendingRngIrq(rngNet);
 
     runPPI(processor);
 
-    if (tick > 0.1*16000000) {
+    if (tick > 3*16000000) {
       printAverageCurrentPerTimeSlot();
       icmPrintf("ticks - %d\n", tick);
       break;
@@ -331,15 +263,9 @@ static void simulate_custom_platform(icmProcessorP processor) {
 static void parseArgs(int argc, char ** argv) {
 
   // check for the application program name argument
-  if(argc!=2) {
-    icmMessage("F", "ARGS", "Usage: %s <application elf file> <processor type or1k|mips32|arm7> [alternative vendor]", argv[0] );
+  if (argc != 2) {
+    icmMessage("F", "ARGS", "Usage: %s <application elf/hex file>", argv[0] );
   }
 
   application = argv[1];
-  //processorType = argv[2];
-  //alternateVendor = NULL;
-
-  /*if(argc==4) {
-      alternateVendor = argv[3];
-     }*/
 }

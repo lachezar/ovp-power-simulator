@@ -12,8 +12,4 @@ static icmNetP timer0Net, rtcNet, rngNet, radioNet, radioPPINet, rtcPPINet, time
 #define TABLE_SIZE 0x10000
 static Uns32 table[TABLE_SIZE];
 
-#define CYCLES_TABLE_SIZE 0x10000
-static unsigned short cycles_table[CYCLES_TABLE_SIZE];
-
-
 #endif //_PLATFORM_H
