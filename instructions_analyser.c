@@ -31,15 +31,15 @@ int load(const char* filename, unsigned int* table, int size) {
 
     if (result == 0) {
       // enumerate the instruction, parse args and use them as meta data, calculate cycles, put the result in a reference table
+
+      table[address >> 1] = encode_instruction_data(instruction_name, instruction_args);
+
+#ifdef TESTING
       instruction_type_t instruction_type = enumerate_instruction((const char*)instruction_name);
       unsigned char cycles = calculate_cycles(instruction_type, instruction_args);
       unsigned short data = meta_data(instruction_type, instruction_args);
-
-      table[address >> 1] = (((unsigned char) instruction_type) << 24) + (cycles << 16) + data;
-
-#ifdef TESTING
       if (data == 0xffff) data = 0;
-      fprintf(fp2, "%x:%d:%d:%s:%d\n", address, cycles, is_branch(address, table), instruction_name, (data & 0x7fff) >> 11);
+      fprintf(fp2, "%x:%d:%d:%s:%d\n", address, cycles, is_conditional_branch(instruction_type), instruction_name, (data & 0x7fff) >> 11);
 #endif
 
     } else {
@@ -167,6 +167,12 @@ unsigned short meta_data(instruction_type_t instruction_type, const char* args) 
       return result;
     }
 
+    parts = sscanf(args, "%*s [r%d]", &reg1_id);
+    if (parts == 1) {
+      result = (reg1_id << 11);
+      return result;
+    }
+
     char register_name[8];
     parts = sscanf(args, "%*s [%s", register_name);
     if (parts == 1) {
@@ -234,8 +240,48 @@ unsigned int calculate_cycles(instruction_type_t instruction_type, const char* a
   return cycles;
 }
 
-unsigned int is_conditional_branch(unsigned int address, unsigned int* table) {
-  unsigned int instruction = get_instruction(address, table);
-  instruction_type_t instruction_type = (instruction_type_t)(instruction >> 24);
+unsigned int is_conditional_branch(instruction_type_t instruction_type) {
   return instruction_type == BNE || instruction_type == BEQ || instruction_type == BRANCH;
+}
+
+unsigned int encode_instruction_data(char* instruction_name, char* instruction_args) {
+  instruction_type_t instruction_type = enumerate_instruction((const char*)instruction_name);
+  unsigned char cycles = calculate_cycles(instruction_type, instruction_args);
+  unsigned short data = meta_data(instruction_type, instruction_args);
+
+  unsigned int encoded_instruction = (((unsigned char) instruction_type) << 24) + (cycles << 16) + data;
+  return encoded_instruction;
+}
+
+int normalize_assembly_format(const char* original_line, char* normalized_line) {
+  int space_flag = 0;
+
+  while (*original_line != 0) {
+    if (*original_line == ',') {
+      strncpy(normalized_line, ", ", 2);
+      normalized_line += 2;
+    } else if (*original_line == ' ') {
+      space_flag = 1;
+    } else { // not a space and not a comma
+      if (space_flag != 0) {
+        *(normalized_line++) = '\t';
+        space_flag = 0;
+      }
+      *(normalized_line++) = *original_line;
+    }
+
+    original_line++;
+  }
+
+  *normalized_line = '\0';
+
+  return 0;
+}
+
+int parse_ovp_disassembled_line(const char* line, char* instruction_name, char* instruction_args) {
+  char normalized_line[100] = " 0:\t";
+  normalize_assembly_format(line, normalized_line+4);
+  unsigned int unused_address;
+  int result = parse_line((const char*)normalized_line, &unused_address, instruction_name, instruction_args);
+  return result;
 }

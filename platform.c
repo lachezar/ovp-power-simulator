@@ -25,8 +25,8 @@ int main(int argc, char ** argv) {
 
   parseArgs(argc, argv);
  
-  if (load("application.asm", table, TABLE_SIZE) != 0) {
-    icmPrintf("Error loading the application.asm file\n");
+  if (load(assemblerFile, table, TABLE_SIZE) != 0) {
+    icmPrintf("Error loading the assembler file - %s\n", assemblerFile);
     return -1;
   }
   
@@ -205,6 +205,7 @@ static void simulate_custom_platform(icmProcessorP processor) {
   double TIME_SLICE = 1.0 / 16000000.0;
   icmStopReason rtnVal = ICM_SR_SCHED;
   Uns32 tick = 0;
+  Uns32 dbgcnt = 0;
   for (tick = 0; rtnVal == ICM_SR_SCHED || rtnVal == ICM_SR_HALT; tick++) {
 
     startPendingRngIrq(rngNet);
@@ -214,30 +215,32 @@ static void simulate_custom_platform(icmProcessorP processor) {
     if (rtnVal == ICM_SR_SCHED && isbranch != 0 && (prevPC + sizeof(short) != currentPC)) {
       tick += 2;
     }
-    
+
     //icmPrintf("%f -> 0x%08x\n", (double)tick * TIME_SLICE, currentPC);
 
     isbranch = 0;
     instruction_type_t instruction_type = 0;
     unsigned char cycles = 1;
     Uns16 data = 0xffff;
-    
+
+    Uns32 instruction;
     if ((currentPC >> 1) < TABLE_SIZE) {
-      isbranch = is_conditional_branch(currentPC, table);
-      Uns32 instruction = get_instruction(currentPC, table);
-      instruction_type = ((instruction >> 24) & 0xff);
-      cycles = ((instruction >> 16) & 0xff);
-      data = (instruction & 0xffff);
-      calculateAverageCurrent(processor, tick, currentPC, instruction_type, cycles, data);
+      instruction = get_instruction(currentPC, table);
     } else {
       // put some default values in the case when code is executed from RAM... for now
+      const char* disassemble = icmDisassemble(processor, currentPC);
+      char instructionName[8];
+      char instructionArgs[20];
+      parse_ovp_disassembled_line(disassemble, instructionName, instructionArgs);
+      instruction = encode_instruction_data(instructionName, instructionArgs);
+      icmPrintf("In-RAM instruction: %s -> %s %s\n", disassemble, instructionName, instructionArgs);
     }
 
-    if (rtnVal == ICM_SR_SCHED && cycles == 0) {
-      const char* disassemble = icmDisassemble(processor, currentPC);
-      icmPrintf(" (unknown instruction in the cycles table) : %s\n", disassemble);
-      cycles = 1;
-    }
+    instruction_type = ((instruction >> 24) & 0xff);
+    isbranch = is_conditional_branch(instruction_type);
+    cycles = ((instruction >> 16) & 0xff);
+    data = (instruction & 0xffff);
+    calculateAverageCurrent(processor, tick, currentPC, instruction_type, cycles, data);
 
     rtnVal = icmSimulate(processor, 1); // it could return "halt" on wfe?
     if (rtnVal != ICM_SR_SCHED) {
@@ -252,7 +255,12 @@ static void simulate_custom_platform(icmProcessorP processor) {
 
     runPPI(processor);
 
-    if (tick > 3*16000000) {
+    if (++dbgcnt % 100 == 0) {
+      icmPrintf("CURRENT TIME IS: %f\n", ((double)tick) * TIME_SLICE);
+    }
+
+    if (tick > 1.2*16000000) {
+      icmPrintf("****end of execution\n");
       printAverageCurrentPerTimeSlot();
       icmPrintf("ticks - %d\n", tick);
       break;
@@ -263,9 +271,10 @@ static void simulate_custom_platform(icmProcessorP processor) {
 static void parseArgs(int argc, char ** argv) {
 
   // check for the application program name argument
-  if (argc != 2) {
-    icmMessage("F", "ARGS", "Usage: %s <application elf/hex file>", argv[0] );
+  if (argc != 3) {
+    icmMessage("F", "ARGS", "Usage: %s <application elf/hex file> <elf/hex disassembled file>", argv[0] );
   }
 
   application = argv[1];
+  assemblerFile = argv[2];
 }

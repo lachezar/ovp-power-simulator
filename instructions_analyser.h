@@ -15,6 +15,12 @@ unsigned short meta_data(instruction_type_t instruction_type, const char* args);
 
 unsigned int get_instruction(unsigned int address, unsigned int* table);
 
-unsigned int is_conditional_branch(unsigned int address, unsigned int* table);
+unsigned int is_conditional_branch(instruction_type_t instruction_type);
+
+unsigned int encode_instruction_data(char* instruction_name, char* instruction_args);
+
+int normalize_assembly_format(const char* original_line, char* normalized_line);
+
+int parse_ovp_disassembled_line(const char* line, char* instruction_name, char* instruction_args);
 
 #endif //_INSTRUCTIONS_ANALYSER_H

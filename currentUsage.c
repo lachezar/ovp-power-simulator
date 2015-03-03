@@ -6,8 +6,8 @@
 const Uns32 NOT_TAKEN_BRANCH_CURRENT = 3920;
 const Uns32 NOT_TAKEN_BNE_CURRENT = 5200;
 
-static Uns64 currentPerTimeSlot[1000];
-static Uns32 cyclesPerTimeSlot[1000];
+static Uns64 currentPerTimeSlot[10000];
+static Uns32 cyclesPerTimeSlot[10000];
 static Uns32 instructionsUsageStats[36];
 
 Uns32 calculateAverageCurrent(icmProcessorP processor, Uns32 tick, Uns32 address, instruction_type_t instruction_type, Uns32 cycles, Uns16 data) {
@@ -28,8 +28,11 @@ Uns32 calculateAverageCurrent(icmProcessorP processor, Uns32 tick, Uns32 address
   static Uns32 branchNotTakenCurrent;
   static Uns32 branchNotTakenCycles;
   
-  Uns32 flashCurrentValue = flashCurrent(prevAddress, address);
-  
+  Uns32 flashCurrentValue = 0;
+  if (address < 0x20000000)  {
+    flashCurrentValue = flashCurrent(prevAddress, address);
+  }
+
   if (postProcessBranch != 0) {
     postProcessBranch = 0;
     //icmPrintf("delta %x %x %d\n", address, prevAddress, address - prevAddress);

@@ -48,11 +48,35 @@ void test_file_loading(const char* filename) {
   load(filename, table, 0x18000);
 }
 
+void test_normalize_assembly_format() {
+  char buffer[100];
+  normalize_assembly_format("4210     tst     r0,r2", buffer);
+  assert(strcmp(buffer, "4210\ttst\tr0, r2") == 0);
+  normalize_assembly_format("6808     ldr     r0,[r1]", buffer);
+  assert(strcmp(buffer, "6808\tldr\tr0, [r1]") == 0);
+  normalize_assembly_format("d0fc     beq     2000000c", buffer);
+  assert(strcmp(buffer, "d0fc\tbeq\t2000000c") == 0);
+  normalize_assembly_format("d0fc     ldr     r1,[pc,#360]", buffer);
+  assert(strcmp(buffer, "d0fc\tldr\tr1, [pc, #360]") == 0);
+}
+
+void test_parse_ovp_disassembled_line() {
+  char buffer[2][100];
+  parse_ovp_disassembled_line("d0fc     ldr     r1,[pc,#360]", buffer[0], buffer[1]);
+  assert(strcmp(buffer[0], "ldr") == 0);
+  assert(strcmp(buffer[1], "r1, [pc, #360]") == 0);
+  parse_ovp_disassembled_line("d0fc     nop", buffer[0], buffer[1]);
+  assert(strcmp(buffer[0], "nop") == 0);
+  assert(strcmp(buffer[1], "") == 0);
+}
+
 int main() {
 
   test_parse_line();
   test_meta_data();
-  test_file_loading("dis.b.asm");
+  test_normalize_assembly_format();
+  test_parse_ovp_disassembled_line();
+  //test_file_loading("dis.b.asm");
   //test_file_loading("rng.dis.asm");
 
   return 0;
