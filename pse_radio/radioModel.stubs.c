@@ -199,8 +199,11 @@ PPM_WRITE_CB(regWr32) {
     bhmPrintf("Radio START! (to be done), data = %d\n", data);
   } else if ((Uns32*)user == &regs.TASKS_START && data != 0) {
     bhmPrintf("Radio START! (to be done)");
+  } else if ((Uns32*)user == &regs.TASKS_DISABLE) {
+    bhmPrintf("Radio DISABLE!");
+    stateTransit(DISABLE);
   } else if (((Uns32)addr - (Uns32)radioWindow) <= 0x20) {
-    bhmPrintf("Radio task not handled");
+    bhmPrintf("Radio task not handled 0x%x state: %d\n", ((Uns32)addr - (Uns32)radioWindow), regs.STATE);
   } else {
     //bhmPrintf("Radio not handled");
   }
@@ -230,6 +233,8 @@ void loop() {
     }
 
     if (regs.STATE == RADIO_STATE_STATE_TxRu) {
+      bhmWaitDelay( 140.0 ); // in uS
+      bhmPrintf("\n\n\n RADIO READY EVENT!!! \n\n\n");
       stateTransit(READY); // idle state
       regs.EVENTS_READY = 1;
       ppmWriteNet(ppiNotificationHandle, RADIO_PERIPHERAL_ID);

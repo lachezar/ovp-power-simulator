@@ -183,6 +183,7 @@ void loop() {
     updateIrqLines();
 
     counter = (counter + 1) & 0xFFFFFF;
+    bhmPrintf("RTC tick: %d\n", counter);
 
     if (resetCounter != 0) {
       resetCounter = 0;
