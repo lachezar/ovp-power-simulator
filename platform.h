@@ -8,7 +8,7 @@ static const char* application;
 static const char* assemblerFile;
 static const char* model;
 static const char* semihosting;
-static icmNetP timer0Net, rtcNet, rngNet, radioNet, radioPPINet, rtcPPINet, timer0PPINet;
+static icmNetP timer0Net, rtcNet, rngNet, radioNet, spi0Net, radioPPINet, rtcPPINet, timer0PPINet, spi0PPINet;
 
 #define TABLE_SIZE 0x10000
 static Uns32 table[TABLE_SIZE];
