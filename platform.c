@@ -123,6 +123,7 @@ int main(int argc, char ** argv) {
   icmPseP rtc0 = icmNewPSE("rtc", "pse_rtc/pse.pse", icmAttrRTC, NULL, NULL);
   icmAttrListP icmAttrRadio = icmNewAttrList();
   icmPseP radio = icmNewPSE("radio", "pse_radio/pse.pse", icmAttrRadio, NULL, NULL);
+  // Note: following the SPI peripherals definition here you can easily duplicate the RTC/Timer in few instances mapped on different memory areas if you need.
   icmAttrListP icmAttrSpi0 = icmNewAttrList();
   icmAddUns32Attr(icmAttrSpi0, "peripheral_id", 3);
   icmAddStringAttr(icmAttrSpi0, "device_implementation", "repeat");
