@@ -123,13 +123,20 @@ int main(int argc, char ** argv) {
   icmPseP rtc0 = icmNewPSE("rtc", "pse_rtc/pse.pse", icmAttrRTC, NULL, NULL);
   icmAttrListP icmAttrRadio = icmNewAttrList();
   icmPseP radio = icmNewPSE("radio", "pse_radio/pse.pse", icmAttrRadio, NULL, NULL);
-  icmAttrListP icmAttrSpi = icmNewAttrList();
-  icmPseP spi0 = icmNewPSE("spi", "pse_spi/pse.pse", icmAttrSpi, NULL, NULL);
+  icmAttrListP icmAttrSpi0 = icmNewAttrList();
+  icmAddUns32Attr(icmAttrSpi0, "peripheral_id", 3);
+  icmAddStringAttr(icmAttrSpi0, "device_implementation", "repeat");
+  icmPseP spi0 = icmNewPSE("spi0", "pse_spi/pse.pse", icmAttrSpi0, NULL, NULL);
+  icmAttrListP icmAttrSpi1 = icmNewAttrList();
+  icmAddUns32Attr(icmAttrSpi1, "peripheral_id", 4);
+  icmAddStringAttr(icmAttrSpi1, "device_implementation", "repeat");
+  icmPseP spi1 = icmNewPSE("spi1", "pse_spi/pse.pse", icmAttrSpi1, NULL, NULL);
 
   icmConnectPSEBus(timer0, bus, "TIMER", False, 0x40008000, 0x40008FFF);
   icmConnectPSEBus(rtc0, bus, "RTC", False, 0x4000B000, 0x4000BFFF);
   icmConnectPSEBus(radio, bus, "RADIO", False, 0x40001000, 0x40001FFF);
   icmConnectPSEBus(spi0, bus, "SPI", False, 0x40003000, 0x40003FFF);
+  icmConnectPSEBus(spi1, bus, "SPI", False, 0x40004000, 0x40004FFF);
 
   // show the bus connections
   icmPrintBusConnections(bus);
@@ -137,32 +144,38 @@ int main(int argc, char ** argv) {
   rtcNet = icmNewNet("rtc_irq");
   timer0Net = icmNewNet("timer_irq");
   radioNet = icmNewNet("radio_irq");
-  spi0Net = icmNewNet("spi_irq");
+  spi0Net = icmNewNet("spi0_irq");
+  spi1Net = icmNewNet("spi1_irq");
   rtcPPINet = icmNewNet("rtc_ppi");
   timer0PPINet = icmNewNet("timer0_ppi");
   radioPPINet = icmNewNet("radio_ppi");
-  spi0PPINet = icmNewNet("spi_ppi");
+  spi0PPINet = icmNewNet("spi0_ppi");
+  spi1PPINet = icmNewNet("spi1_ppi");
 
   // connect the processor interrupt port to the net
   icmConnectProcessorNet(processor, rtcNet, "int11", ICM_INPUT);
   icmConnectProcessorNet(processor, timer0Net, "int8", ICM_INPUT);
   icmConnectProcessorNet(processor, radioNet, "int1", ICM_INPUT);
   icmConnectProcessorNet(processor, spi0Net, "int3", ICM_INPUT);
+  icmConnectProcessorNet(processor, spi1Net, "int4", ICM_INPUT);
 
   // connect the RTC0 interrupt port to the net
   icmConnectPSENet(rtc0, rtcNet, "rtc_irq", ICM_OUTPUT);
   icmConnectPSENet(timer0, timer0Net, "timer_irq", ICM_OUTPUT);
   icmConnectPSENet(radio, radioNet, "radio_irq", ICM_OUTPUT);
   icmConnectPSENet(spi0, spi0Net, "spi_irq", ICM_OUTPUT);
+  icmConnectPSENet(spi1, spi1Net, "spi_irq", ICM_OUTPUT);
   icmConnectPSENet(rtc0, rtcPPINet, "rtc_ppi", ICM_OUTPUT);
   icmConnectPSENet(timer0, timer0PPINet, "timer0_ppi", ICM_OUTPUT);
   icmConnectPSENet(radio, radioPPINet, "radio_ppi", ICM_OUTPUT);
   icmConnectPSENet(spi0, spi0PPINet, "spi_ppi", ICM_OUTPUT);
+  icmConnectPSENet(spi1, spi1PPINet, "spi_ppi", ICM_OUTPUT);
 
   icmAddNetCallback(rtcPPINet, intPPINetWritten, NULL);
   icmAddNetCallback(timer0PPINet, intPPINetWritten, NULL);
   icmAddNetCallback(radioPPINet, intPPINetWritten, NULL);
   icmAddNetCallback(spi0PPINet, intPPINetWritten, NULL);
+  icmAddNetCallback(spi1PPINet, intPPINetWritten, NULL);
 
   rngNet = icmNewNet("rng_irq");
   icmConnectProcessorNet(processor, rngNet, "int13", ICM_INPUT);

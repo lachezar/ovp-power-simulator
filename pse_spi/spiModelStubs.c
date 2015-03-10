@@ -3,12 +3,18 @@
 #include <stdlib.h>
 
 #include "spiModel.h"
+#include "spiDeviceImplementation.h"
+
+#define DEV_IMPL_LEN 20
 
 // At the moment only SPI Master is supported
 // Also no double buffering of the RX/TX registers
 
 static Uns32 irq = 0;
-static Uns32 waitingForRXD = 1;
+static Uns32 peripheralId;
+static char deviceImplementation[DEV_IMPL_LEN];
+static Uns8 txd[2];
+static Uns8 txdSize = 0;
 
 //
 // View any 32-bit register
@@ -23,8 +29,7 @@ PPM_VIEW_CB(viewReg32) {
 PPM_READ_CB(regRd32) {
   if ((Uns32*)user == &regs.RXD) {
     regs.RXD &= 0xff;
-    waitingForRXD = 0;
-    bhmPrintf("\n!!!READ RXD REGISTER - %d\n", *(Uns32*)user);
+    bhmPrintf("\n!!!READ RXD REGISTER - %d (%d)\n", *(Uns32*)user, peripheralId);
   }
 
   return *(Uns32*)user;
@@ -36,15 +41,25 @@ PPM_READ_CB(regRd32) {
 PPM_WRITE_CB(regWr32) {
   *(Uns32*)user = data;
 
-  bhmPrintf("\n!!! SPI WRITE %d to 0x%x\n", data, (Uns32)addr - (Uns32)spiWindow);
+  bhmPrintf("\n!!! SPI WRITE %d to 0x%x (%d)\n", data, (Uns32)addr - (Uns32)spiWindow, peripheralId);
 
   if ((Uns32*)user == &regs.ENABLE && data != 0) {
     bhmTriggerEvent(startEventHandle);
-    bhmPrintf("\n!!! SPI IS ENABLED\n");
+    bhmPrintf("\n!!! SPI IS ENABLED (%d)\n", peripheralId);
   } else if ((Uns32*)user == &regs.ENABLE && data == 0) {
-    bhmPrintf("\n!!! SPI IS DISABLED\n");
+    bhmPrintf("\n!!! SPI IS DISABLED (%d)\n", peripheralId);
   } else if ((Uns32*)user == &regs.TXD) {
-    bhmPrintf("\n!!! SPI TXD %d\n", data);
+
+    if (txdSize > 1) {
+      bhmPrintf("!!!ERROR invalid TXD SIZE %d!\n", txdSize);
+      exit(1);
+    }
+
+    txd[txdSize] = data;
+    txdSize++;
+
+    bhmTriggerEvent(txdEventHandle);
+    bhmPrintf("\n!!! SPI TXD %d (%d)\n", data, peripheralId);
   } else if ((Uns32*)user == &regs.FREQUENCY) {
     Uns32 x = (data / 0x02000000);
     if (x == 0 || ((x & (x-1)) != 0)) {
@@ -76,10 +91,15 @@ PPM_CONSTRUCTOR_CB(init) {
   periphConstructor();
 
   startEventHandle = bhmCreateNamedEvent("start", "start the SPI");
-  rxdEventHandle = bhmCreateNamedEvent("wait_for_rxd", "wait for RXD");
+  txdEventHandle = bhmCreateNamedEvent("wait_for_txd", "wait for TXD");
 
   regs.ENABLE = 0;
   regs.FREQUENCY = 0x02000000;
+
+  bhmIntegerAttribute("peripheral_id", &peripheralId);
+  bhmPrintf("\n$$$$$ SPI PERIPHERAL ID: %d \n", peripheralId);
+  bhmStringAttribute("device_implementation", deviceImplementation, DEV_IMPL_LEN);
+  bhmPrintf("\n$$$$$ SPI DEVICE IMPLEMENTATION: %s \n", deviceImplementation);
 }
 
 static void updateIrqLines() {
@@ -98,22 +118,32 @@ void loop() {
       bhmWaitEvent(startEventHandle);
     }
 
-    while (waitingForRXD != 0) {
-      bhmWaitEvent(rxdEventHandle);
+    while (txdSize == 0) {
+      bhmWaitEvent(txdEventHandle);
     }
-    waitingForRXD = 1;
 
-    regs.RXD++; // fake data received in RXD
+    if (strcmp(deviceImplementation, DEVICE_IMPLEMENTATION_REPEAT) == 0) {
+      if (txdSize == 0) {
+        bhmPrintf("!!!ERROR TXD SIZE IS 0!\n");
+        exit(1);
+      } else {
+        regs.RXD = repeat(txd[0]);
+        txd[0] = txd[1];
+        txdSize--;
+      }
+    } else {
+      bhmPrintf("!!!NO DEVICE IMPLEMENTATION SELECTED!\n");
+      exit(1);
+    }
 
     if (regs.EVENTS_READY == 0) {
       regs.EVENTS_READY = 1;
-      ppmWriteNet(spiNotificationHandle, SPI_PERIPHERAL_ID);
+      ppmWriteNet(spiNotificationHandle, peripheralId);
       if ((irq & (1 << 2)) != 0) {
         updateIrqLines();
       }
     }
 
-    bhmWaitDelay( 50 ); // in uS
-    // 0x80000000 / regs.FREQUENCY
+    bhmWaitDelay( 0x80000000 / regs.FREQUENCY ); // in uS
   }
 }

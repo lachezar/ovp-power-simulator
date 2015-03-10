@@ -5,8 +5,6 @@
 #include "peripheral/bhm.h"
 #include "peripheral/ppm.h"
 
-#define SPI_PERIPHERAL_ID 0x3
-
 #define __O
 #define __I
 #define __IO
@@ -41,7 +39,7 @@ spiRegs regs;
 void* spiWindow;
 
 bhmEventHandle startEventHandle;
-bhmEventHandle rxdEventHandle;
+bhmEventHandle txdEventHandle;
 
 //
 // prototypes
