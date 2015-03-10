@@ -112,7 +112,7 @@ $(OBJDIR)/%.d: %.$(1)
 	@ echo "$$(CC) -MM $$< $$(SIM_CFLAGS) $$(CFLAGS) $$(LDFLAGS) -MT $$(OBJDIR)/$$*.o -MF $$@"
 	$$(V) mkdir -p $$(@D)
 	$$(V) strace $$(CC) -MM $$< $$(SIM_CFLAGS) $$(CFLAGS) $$(LDFLAGS) -MT $$(OBJDIR)/$$*.o -MF $$@
-	$$(V) sed -i 's/d:/\/cygdrive\/d/' $$@
+	$$(V) sed -i 's/d:/\/cygdrive\/d/I' $$@
 
 $(OBJDIR)/%.o: %.$(1)
 	$$(V) mkdir -p $$(@D)
