@@ -76,8 +76,8 @@ int main() {
   test_meta_data();
   test_normalize_assembly_format();
   test_parse_ovp_disassembled_line();
-  //test_file_loading("dis.b.asm");
-  //test_file_loading("rng.dis.asm");
+
+  printf("All tests have passed!");
 
   return 0;
 }

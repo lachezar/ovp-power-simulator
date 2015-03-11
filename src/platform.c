@@ -118,20 +118,20 @@ int main(int argc, char ** argv) {
 
   // instantiate the peripheral
   icmAttrListP icmAttrTimer = icmNewAttrList();
-  icmPseP timer0 = icmNewPSE("timer", "pse_timer/pse.pse", icmAttrTimer, NULL, NULL);
+  icmPseP timer0 = icmNewPSE("timer", "src/pse_timer/pse.pse", icmAttrTimer, NULL, NULL);
   icmAttrListP icmAttrRTC = icmNewAttrList();
-  icmPseP rtc0 = icmNewPSE("rtc", "pse_rtc/pse.pse", icmAttrRTC, NULL, NULL);
+  icmPseP rtc0 = icmNewPSE("rtc", "src/pse_rtc/pse.pse", icmAttrRTC, NULL, NULL);
   icmAttrListP icmAttrRadio = icmNewAttrList();
-  icmPseP radio = icmNewPSE("radio", "pse_radio/pse.pse", icmAttrRadio, NULL, NULL);
+  icmPseP radio = icmNewPSE("radio", "src/pse_radio/pse.pse", icmAttrRadio, NULL, NULL);
   // Note: following the SPI peripherals definition here you can easily duplicate the RTC/Timer in few instances mapped on different memory areas if you need.
   icmAttrListP icmAttrSpi0 = icmNewAttrList();
   icmAddUns32Attr(icmAttrSpi0, "peripheral_id", 3);
   icmAddStringAttr(icmAttrSpi0, "device_implementation", "repeat");
-  icmPseP spi0 = icmNewPSE("spi0", "pse_spi/pse.pse", icmAttrSpi0, NULL, NULL);
+  icmPseP spi0 = icmNewPSE("spi0", "src/pse_spi/pse.pse", icmAttrSpi0, NULL, NULL);
   icmAttrListP icmAttrSpi1 = icmNewAttrList();
   icmAddUns32Attr(icmAttrSpi1, "peripheral_id", 4);
   icmAddStringAttr(icmAttrSpi1, "device_implementation", "repeat");
-  icmPseP spi1 = icmNewPSE("spi1", "pse_spi/pse.pse", icmAttrSpi1, NULL, NULL);
+  icmPseP spi1 = icmNewPSE("spi1", "src/pse_spi/pse.pse", icmAttrSpi1, NULL, NULL);
 
   icmConnectPSEBus(timer0, bus, "TIMER", False, 0x40008000, 0x40008FFF);
   icmConnectPSEBus(rtc0, bus, "RTC", False, 0x4000B000, 0x4000BFFF);

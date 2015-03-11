@@ -71,7 +71,8 @@ $(OBJDIR)/%.d: %.c $(PSE-SRC)
 	$(V) echo "# Cross Depending Peripheral $@"
 	$(V) mkdir -p $(@D)
 	$(V) $(PSE_CC) -MM $< $(CFLAGS) -MT $(OBJDIR)/$*.o -MF $@
-	$(V) sed -i 's/d:/\/cygdrive\/d/I' $@
+	@ # If you use Posix or proper mingw probably you don't need the following line
+	$(V) sed -i -r 's/(\w):\//\/cygdrive\/\1\//' $@
 
 $(OBJDIR)/%.o: %.c
 	$(V) echo "# Cross Compiling Peripheral $@"

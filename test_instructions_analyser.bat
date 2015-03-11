@@ -1,1 +1,4 @@
-make -f Makefile.platform OPT=1 NOVLNV=1 test && test_instructions_analyser.elf
+make -C test
+@echo.
+@echo Check if any of the assertions have failed:
+test\test_instructions_analyser.elf
