@@ -1,4 +1,4 @@
-make -C test
+make -C tests
 @echo.
 @echo Check if any of the assertions have failed:
-test\test_instructions_analyser.elf
+tests\test_instructions_analyser.elf
