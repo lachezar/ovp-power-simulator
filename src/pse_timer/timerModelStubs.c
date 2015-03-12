@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 #include "timerModel.h"
 
@@ -10,20 +11,30 @@ static Uns32 shouldTriggerIrq = 0;
 static Uns32 isStarted = 0;
 static Uns32 skipCCMatch[4];
 
+#undef info
+#define info(format, ...) bhmPrintf("!!! TIMER(%d): ", TIMER0_PERIPHERAL_ID);\
+bhmPrintf(format, ##__VA_ARGS__);\
+bhmPrintf("\n")
+
+#undef error
+#define error(format, ...) bhmPrintf(">>> ERROR IN TIMER(%d): ", TIMER0_PERIPHERAL_ID);\
+bhmPrintf(format, ##__VA_ARGS__);\
+bhmPrintf("\n")
+
 //
 // View any 32-bit register
 //
 PPM_VIEW_CB(viewReg32) {
-  bhmPrintf("\n$$$ Timer View\n");
+  info("View");
 }
 
 //
 // Read any 32-bit register
 //
 PPM_READ_CB(regRd32) {
-  bhmPrintf("\n$$$ Timer Read from 0x%08x\n", (Uns32)addr - (Uns32)timerWindow);
+  info("Read from 0x%08x\n", (Uns32)addr - (Uns32)timerWindow);
   if ((Uns32*)user == &regs.INTENSET || (Uns32*)user == &regs.INTENCLR) {
-    bhmPrintf("TIMER READ INTENCLR or INTENSET! - 0x%08x\n", irq);
+    info("READ INTENCLR or INTENSET! - 0x%08x", irq);
     *(Uns32*)user = irq;
     return irq;
   }
@@ -35,17 +46,17 @@ PPM_READ_CB(regRd32) {
 //
 PPM_WRITE_CB(regWr32) {
   *(Uns32*)user = data;
-  bhmPrintf("\n$$$ Timer Write to 0x%08x (user - 0x%08x, data - 0x%08x, window - 0x%08x, pwr - %d) \n", (Uns32)addr - (Uns32)timerWindow, (Uns32)user, data, (Uns32)timerWindow, regs.POWER);
+  info("Write to 0x%08x (user - 0x%08x, data - 0x%08x, window - 0x%08x, pwr - %d)", (Uns32)addr - (Uns32)timerWindow, (Uns32)user, data, (Uns32)timerWindow, regs.POWER);
 
   if ((Uns32*)user == &regs.TASKS_START && data != 0 && isStarted == 0) {
     isStarted = 1;
     regs.TASKS_STOP = 0;
     bhmTriggerEvent(startEventHandle);
-    bhmPrintf("TIMER START! (to be done)");
+    info("START! (to be done)");
   } else if ((Uns32*)user == &regs.TASKS_STOP && data != 0 && isStarted != 0) {
     isStarted = 0;
     regs.TASKS_START = 0;
-    bhmPrintf("TIMER STOP! (to be done)");
+    info("STOP! (to be done)");
   } else if ((Uns32*)user == &regs.POWER && data != 0) {
     // power on
   } else if ((Uns32*)user == &regs.POWER && data == 0) {
@@ -53,32 +64,32 @@ PPM_WRITE_CB(regWr32) {
     regs.TASKS_STOP = 1;
     regs.TASKS_START = 0;
     ticks = 0;
-    bhmPrintf("TIMER POWER DOWN!\n");
+    info("POWER DOWN!\n");
   } else if ((Uns32*)user == &regs.MODE && data == 1) {
-    bhmPrintf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! COUNTER MODE NOT SUPPORTED YET!");
+    error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! COUNTER MODE NOT SUPPORTED YET!");
     exit(1);
   } else if ((Uns32*)user == &regs.MODE && data == 0) {
-    bhmPrintf("TIMER in timing mode!");
+    info("timing mode!");
   } else if ((Uns32*)user == &regs.TASKS_COUNT) {
-    bhmPrintf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! COUNTER MODE NOT SUPPORTED YET!");
+    error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! COUNTER MODE NOT SUPPORTED YET!");
     exit(1);
   } else if ((Uns32*)user == &regs.TASKS_CLEAR) {
-    bhmPrintf("CLEAR TIMER ticks!");
+    info("CLEAR TIMER ticks!");
     ticks = 0;
   } else if ((Uns32*)user >= &regs.TASKS_CAPTURE[0] && (Uns32*)user <= &regs.TASKS_CAPTURE[3]) {
     Uns32 id = (Uns32*)user - &regs.TASKS_CAPTURE[0];
     skipCCMatch[id] = 1;
     regs.CC[id] = ticks;
-    bhmPrintf("CAPTURE[%d] TIMER ticks!", id);
+    info("CAPTURE[%d] TIMER ticks!", id);
   } else if ((Uns32*)user >= &regs.EVENTS_COMPARE[0] && (Uns32*)user <= &regs.EVENTS_COMPARE[3]) {
     Uns32 id = (Uns32*)user - &regs.EVENTS_COMPARE[0];
-    bhmPrintf("COMPARE[%d] TIMER write!", id);
+    info("COMPARE[%d] TIMER write!", id);
     ppmWriteNet(timer0NotificationHandle, TIMER0_PERIPHERAL_ID);
   } else if ((Uns32*)user == &regs.SHORTS) {
-    bhmPrintf("TIMER SHORTS!");
+    info("SHORTS!");
   } else if ((Uns32*)user == &regs.INTENSET) {
     irq = irq | data;
-    bhmPrintf("TIMER INTENSET!");
+    info("INTENSET!");
   } else if ((Uns32*)user == &regs.INTENCLR) {
     /*
        0 0 -> 0
@@ -87,20 +98,20 @@ PPM_WRITE_CB(regWr32) {
        1 0 -> 1
      */
     irq = irq & (~data);
-    bhmPrintf("TIMER INTENCLR!");
+    info("INTENCLR!");
   } else if ((Uns32*)user == &regs.BITMODE) {
-    bhmPrintf("TIMER BITMODE!");
+    info("BITMODE!");
   } else if ((Uns32*)user == &regs.PRESCALER) {
-    bhmPrintf("TIMER PRESCALER!");
+    info("PRESCALER!");
     if (data < 0 || data > 9) {
-      bhmPrintf("unsupported TIMER PRESCALER value = %d!", data);
+      error("unsupported TIMER PRESCALER value = %d!", data);
       exit(1);
     }
   } else if ((Uns32*)user >= &regs.CC[0] && (Uns32*)user <= &regs.CC[3]) {
     Uns32 id = (Uns32*)user - &regs.CC[0];
-    bhmPrintf("CC[%d] TIMER write!", id);
+    info("CC[%d] TIMER write!", id);
   } else {
-    bhmPrintf("\n\n\nTIMER0 unsupported memory write! 0x%08x \n\n\n", (Uns32)addr - (Uns32)timerWindow);
+    error("\n\n\nTIMER0 unsupported memory write! 0x%08x \n\n\n", (Uns32)addr - (Uns32)timerWindow);
     exit(1);
   }
 }
@@ -109,7 +120,7 @@ PPM_CONSTRUCTOR_CB(init) {
 
   periphConstructor();
 
-  bhmPrintf("\n\n\n$$$$$ constructor \n\n\n");
+  info("\n\n\n$$$$$ constructor \n\n\n");
 
   startEventHandle = bhmCreateNamedEvent("start", "start the timer");
 
@@ -123,12 +134,12 @@ static void triggerIrq() {
 
 static void updateIrqLines() {
   if (shouldTriggerIrq == 1) {
-    bhmPrintf("\n$$$$$ TIMER IRQ ON \n");
+    info("IRQ ON \n");
     ppmWriteNet(irqHandle, 1);
     shouldTriggerIrq = 0;
     bhmWaitDelay(5.0);
     ppmWriteNet(irqHandle, 0);
-    bhmPrintf("\n$$$$$ TIMER IRQ OFF \n");
+    info("IRQ OFF \n");
   }
 }
 
@@ -146,7 +157,7 @@ void loop() {
     Uns32 i;
     for (i = 0; i < 4; i++) {
       if (ticks == regs.CC[i] && skipCCMatch[i] == 0) {
-        bhmPrintf("\n\n$$$$$ Timer CC[%d] match\n", i);
+        info("CC[%d] match\n", i);
         regs.EVENTS_COMPARE[i] = 1;
         ppmWriteNet(timer0NotificationHandle, TIMER0_PERIPHERAL_ID);
         if ((regs.SHORTS & (1 << i)) != 0) {
@@ -172,7 +183,7 @@ void loop() {
     }
 
     //if (ticks % 100 == 0) { // less output
-      bhmPrintf("$$$$$ loop ticks = %d, cc[0] = %d, cc[1] = %d, cc[2] = %d, cc[3] = %d \n", ticks, regs.CC[0], regs.CC[1], regs.CC[2], regs.CC[3]);
+      info("$$$$$ loop ticks = %d, cc[0] = %d, cc[1] = %d, cc[2] = %d, cc[3] = %d \n", ticks, regs.CC[0], regs.CC[1], regs.CC[2], regs.CC[3]);
     //}
 
     updateIrqLines();
@@ -189,7 +200,7 @@ void loop() {
     }
 
     if (resetTicks == 1) {
-      bhmPrintf("\n\n\n$$$$$ Timer reset ticks!!!\n\n\n");
+      info("reset ticks!!!\n\n\n");
       ticks = 0;
     }
 

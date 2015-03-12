@@ -7,6 +7,17 @@
 
 #define DEV_IMPL_LEN 20
 
+#undef info
+#define info(format, ...) bhmPrintf("*** SPI(%d): ", peripheralId);\
+bhmPrintf(format, ##__VA_ARGS__);\
+bhmPrintf("\n")
+
+#undef error
+#define error(format, ...) bhmPrintf(">>> ERROR IN SPI(%d): ", peripheralId);\
+bhmPrintf(format, ##__VA_ARGS__);\
+bhmPrintf("\n")
+
+
 // At the moment only SPI Master is supported
 // Also no double buffering of the RX/TX registers
 
@@ -20,7 +31,7 @@ static Uns8 txdSize = 0;
 // View any 32-bit register
 //
 PPM_VIEW_CB(viewReg32) {
-  bhmPrintf("\n$$$ SPI View\n");
+  info("View");
 }
 
 //
@@ -29,7 +40,7 @@ PPM_VIEW_CB(viewReg32) {
 PPM_READ_CB(regRd32) {
   if ((Uns32*)user == &regs.RXD) {
     regs.RXD &= 0xff;
-    bhmPrintf("\n!!!READ RXD REGISTER - %d (%d)\n", *(Uns32*)user, peripheralId);
+    info("READ RXD REGISTER - %d (%d)\n", *(Uns32*)user, peripheralId);
   }
 
   return *(Uns32*)user;
@@ -41,17 +52,17 @@ PPM_READ_CB(regRd32) {
 PPM_WRITE_CB(regWr32) {
   *(Uns32*)user = data;
 
-  bhmPrintf("\n!!! SPI WRITE %d to 0x%x (%d)\n", data, (Uns32)addr - (Uns32)spiWindow, peripheralId);
+  info("WRITE %d to 0x%x (%d)\n", data, (Uns32)addr - (Uns32)spiWindow, peripheralId);
 
   if ((Uns32*)user == &regs.ENABLE && data != 0) {
     bhmTriggerEvent(startEventHandle);
-    bhmPrintf("\n!!! SPI IS ENABLED (%d)\n", peripheralId);
+    info("ENABLED (%d)\n", peripheralId);
   } else if ((Uns32*)user == &regs.ENABLE && data == 0) {
-    bhmPrintf("\n!!! SPI IS DISABLED (%d)\n", peripheralId);
+    info("DISABLED (%d)\n", peripheralId);
   } else if ((Uns32*)user == &regs.TXD) {
 
     if (txdSize > 1) {
-      bhmPrintf("!!!ERROR invalid TXD SIZE %d!\n", txdSize);
+      error("invalid TXD SIZE %d!\n", txdSize);
       exit(1);
     }
 
@@ -59,19 +70,19 @@ PPM_WRITE_CB(regWr32) {
     txdSize++;
 
     bhmTriggerEvent(txdEventHandle);
-    bhmPrintf("\n!!! SPI TXD %d (%d)\n", data, peripheralId);
+    info("TXD %d (%d)\n", data, peripheralId);
   } else if ((Uns32*)user == &regs.FREQUENCY) {
     Uns32 x = (data / 0x02000000);
     if (x == 0 || ((x & (x-1)) != 0)) {
       // incorrect value
-      bhmPrintf("unsupported SPI FREQUENCY value = %d!\n", data);
+      error("unsupported SPI FREQUENCY value = %d!\n", data);
       exit(1);
     }
   } else if ((Uns32*)user == &regs.INTENSET) {
     irq = irq | data;
     regs.INTENSET = irq;
     regs.INTENCLR = irq;
-    bhmPrintf("SPI INTENSET! irq - %d\n", irq);
+    info("INTENSET! irq - %d\n", irq);
   } else if ((Uns32*)user == &regs.INTENCLR) {
     /*
        0 0 -> 0
@@ -82,7 +93,7 @@ PPM_WRITE_CB(regWr32) {
     irq = irq & (~data);
     regs.INTENSET = irq;
     regs.INTENCLR = irq;
-    bhmPrintf("SPI INTENCLR!");
+    info("INTENCLR!");
   }
 }
 
@@ -97,17 +108,17 @@ PPM_CONSTRUCTOR_CB(init) {
   regs.FREQUENCY = 0x02000000;
 
   bhmIntegerAttribute("peripheral_id", &peripheralId);
-  bhmPrintf("\n$$$$$ SPI PERIPHERAL ID: %d \n", peripheralId);
+  info("PERIPHERAL ID: %d \n", peripheralId);
   bhmStringAttribute("device_implementation", deviceImplementation, DEV_IMPL_LEN);
-  bhmPrintf("\n$$$$$ SPI DEVICE IMPLEMENTATION: %s \n", deviceImplementation);
+  info("DEVICE IMPLEMENTATION: %s \n", deviceImplementation);
 }
 
 static void updateIrqLines() {
   ppmWriteNet(irqHandle, 1);
-  bhmPrintf("\n$$$$$ SPI IRQ ON \n");
+  info("IRQ ON \n");
   bhmWaitDelay(5.0);
   ppmWriteNet(irqHandle, 0);
-  bhmPrintf("\n$$$$$ SPI IRQ OFF \n");
+  info("IRQ OFF \n");
 }
 
 void loop() {
@@ -124,7 +135,7 @@ void loop() {
 
     if (strcmp(deviceImplementation, DEVICE_IMPLEMENTATION_REPEAT) == 0) {
       if (txdSize == 0) {
-        bhmPrintf("!!!ERROR TXD SIZE IS 0!\n");
+        error("TXD SIZE IS 0!\n");
         exit(1);
       } else {
         regs.RXD = repeat(txd[0]);
@@ -132,7 +143,7 @@ void loop() {
         txdSize--;
       }
     } else {
-      bhmPrintf("!!!NO DEVICE IMPLEMENTATION SELECTED!\n");
+      error("!!!NO DEVICE IMPLEMENTATION SELECTED!\n");
       exit(1);
     }
 

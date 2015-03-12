@@ -56,7 +56,6 @@ static void netPortConnections(void) {
 PPM_CONSTRUCTOR_CB(periphConstructor) {
   busPortConnections();
   netPortConnections();
-  bhmPrintf("\n\n\nHELLO WORLD! From the Timer Constructor!\n\n\n");
 }
 
 int main(int argc, char **argv) {
