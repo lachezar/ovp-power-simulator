@@ -8,7 +8,7 @@
 #define DEV_IMPL_LEN 20
 
 #undef info
-#define info(format, ...) bhmPrintf("*** SPI(%d): ", peripheralId);\
+#define info(format, ...) bhmPrintf("%f *** SPI(%d): ", bhmGetCurrentTime()/1000000.0, peripheralId);\
 bhmPrintf(format, ##__VA_ARGS__);\
 bhmPrintf("\n")
 
@@ -40,7 +40,7 @@ PPM_VIEW_CB(viewReg32) {
 PPM_READ_CB(regRd32) {
   if ((Uns32*)user == &regs.RXD) {
     regs.RXD &= 0xff;
-    info("READ RXD REGISTER - %d (%d)\n", *(Uns32*)user, peripheralId);
+    info("READ RXD REGISTER - %d (%d)", *(Uns32*)user, peripheralId);
   }
 
   return *(Uns32*)user;
@@ -52,17 +52,17 @@ PPM_READ_CB(regRd32) {
 PPM_WRITE_CB(regWr32) {
   *(Uns32*)user = data;
 
-  info("WRITE %d to 0x%x (%d)\n", data, (Uns32)addr - (Uns32)spiWindow, peripheralId);
+  info("WRITE %d to 0x%x (%d)", data, (Uns32)addr - (Uns32)spiWindow, peripheralId);
 
   if ((Uns32*)user == &regs.ENABLE && data != 0) {
     bhmTriggerEvent(startEventHandle);
-    info("ENABLED (%d)\n", peripheralId);
+    info("ENABLED (%d)", peripheralId);
   } else if ((Uns32*)user == &regs.ENABLE && data == 0) {
-    info("DISABLED (%d)\n", peripheralId);
+    info("DISABLED (%d)", peripheralId);
   } else if ((Uns32*)user == &regs.TXD) {
 
     if (txdSize > 1) {
-      error("invalid TXD SIZE %d!\n", txdSize);
+      error("invalid TXD SIZE %d!", txdSize);
       exit(1);
     }
 
@@ -70,19 +70,19 @@ PPM_WRITE_CB(regWr32) {
     txdSize++;
 
     bhmTriggerEvent(txdEventHandle);
-    info("TXD %d (%d)\n", data, peripheralId);
+    info("TXD %d (%d)", data, peripheralId);
   } else if ((Uns32*)user == &regs.FREQUENCY) {
     Uns32 x = (data / 0x02000000);
     if (x == 0 || ((x & (x-1)) != 0)) {
       // incorrect value
-      error("unsupported SPI FREQUENCY value = %d!\n", data);
+      error("unsupported SPI FREQUENCY value = %d!", data);
       exit(1);
     }
   } else if ((Uns32*)user == &regs.INTENSET) {
     irq = irq | data;
     regs.INTENSET = irq;
     regs.INTENCLR = irq;
-    info("INTENSET! irq - %d\n", irq);
+    info("INTENSET! irq - %d", irq);
   } else if ((Uns32*)user == &regs.INTENCLR) {
     /*
        0 0 -> 0
@@ -108,17 +108,17 @@ PPM_CONSTRUCTOR_CB(init) {
   regs.FREQUENCY = 0x02000000;
 
   bhmIntegerAttribute("peripheral_id", &peripheralId);
-  info("PERIPHERAL ID: %d \n", peripheralId);
+  info("PERIPHERAL ID: %d", peripheralId);
   bhmStringAttribute("device_implementation", deviceImplementation, DEV_IMPL_LEN);
-  info("DEVICE IMPLEMENTATION: %s \n", deviceImplementation);
+  info("DEVICE IMPLEMENTATION: %s", deviceImplementation);
 }
 
 static void updateIrqLines() {
   ppmWriteNet(irqHandle, 1);
-  info("IRQ ON \n");
+  info("IRQ ON");
   bhmWaitDelay(5.0);
   ppmWriteNet(irqHandle, 0);
-  info("IRQ OFF \n");
+  info("IRQ OFF");
 }
 
 void loop() {
@@ -135,7 +135,7 @@ void loop() {
 
     if (strcmp(deviceImplementation, DEVICE_IMPLEMENTATION_REPEAT) == 0) {
       if (txdSize == 0) {
-        error("TXD SIZE IS 0!\n");
+        error("TXD SIZE IS 0!");
         exit(1);
       } else {
         regs.RXD = repeat(txd[0]);
@@ -143,7 +143,7 @@ void loop() {
         txdSize--;
       }
     } else {
-      error("!!!NO DEVICE IMPLEMENTATION SELECTED!\n");
+      error("!!!NO DEVICE IMPLEMENTATION SELECTED!");
       exit(1);
     }
 

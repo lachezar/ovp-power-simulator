@@ -12,7 +12,7 @@ static Uns32 isStarted = 0;
 static Uns32 skipCCMatch[4];
 
 #undef info
-#define info(format, ...) bhmPrintf("!!! TIMER(%d): ", TIMER0_PERIPHERAL_ID);\
+#define info(format, ...) bhmPrintf("%f !!! TIMER(%d): ", bhmGetCurrentTime()/1000000.0, TIMER0_PERIPHERAL_ID);\
 bhmPrintf(format, ##__VA_ARGS__);\
 bhmPrintf("\n")
 
@@ -32,7 +32,7 @@ PPM_VIEW_CB(viewReg32) {
 // Read any 32-bit register
 //
 PPM_READ_CB(regRd32) {
-  info("Read from 0x%08x\n", (Uns32)addr - (Uns32)timerWindow);
+  info("Read from 0x%08x", (Uns32)addr - (Uns32)timerWindow);
   if ((Uns32*)user == &regs.INTENSET || (Uns32*)user == &regs.INTENCLR) {
     info("READ INTENCLR or INTENSET! - 0x%08x", irq);
     *(Uns32*)user = irq;
@@ -64,7 +64,7 @@ PPM_WRITE_CB(regWr32) {
     regs.TASKS_STOP = 1;
     regs.TASKS_START = 0;
     ticks = 0;
-    info("POWER DOWN!\n");
+    info("POWER DOWN!");
   } else if ((Uns32*)user == &regs.MODE && data == 1) {
     error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! COUNTER MODE NOT SUPPORTED YET!");
     exit(1);
@@ -120,7 +120,7 @@ PPM_CONSTRUCTOR_CB(init) {
 
   periphConstructor();
 
-  info("\n\n\n$$$$$ constructor \n\n\n");
+  info("constructor");
 
   startEventHandle = bhmCreateNamedEvent("start", "start the timer");
 
@@ -134,12 +134,12 @@ static void triggerIrq() {
 
 static void updateIrqLines() {
   if (shouldTriggerIrq == 1) {
-    info("IRQ ON \n");
+    info("IRQ ON");
     ppmWriteNet(irqHandle, 1);
     shouldTriggerIrq = 0;
     bhmWaitDelay(5.0);
     ppmWriteNet(irqHandle, 0);
-    info("IRQ OFF \n");
+    info("IRQ OFF");
   }
 }
 
@@ -157,7 +157,7 @@ void loop() {
     Uns32 i;
     for (i = 0; i < 4; i++) {
       if (ticks == regs.CC[i] && skipCCMatch[i] == 0) {
-        info("CC[%d] match\n", i);
+        info("CC[%d] match", i);
         regs.EVENTS_COMPARE[i] = 1;
         ppmWriteNet(timer0NotificationHandle, TIMER0_PERIPHERAL_ID);
         if ((regs.SHORTS & (1 << i)) != 0) {
@@ -183,7 +183,7 @@ void loop() {
     }
 
     //if (ticks % 100 == 0) { // less output
-      info("$$$$$ loop ticks = %d, cc[0] = %d, cc[1] = %d, cc[2] = %d, cc[3] = %d \n", ticks, regs.CC[0], regs.CC[1], regs.CC[2], regs.CC[3]);
+      info("$$$$$ loop ticks = %d, cc[0] = %d, cc[1] = %d, cc[2] = %d, cc[3] = %d", ticks, regs.CC[0], regs.CC[1], regs.CC[2], regs.CC[3]);
     //}
 
     updateIrqLines();
@@ -200,7 +200,7 @@ void loop() {
     }
 
     if (resetTicks == 1) {
-      info("reset ticks!!!\n\n\n");
+      info("reset ticks!!!");
       ticks = 0;
     }
 

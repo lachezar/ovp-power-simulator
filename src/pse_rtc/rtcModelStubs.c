@@ -5,7 +5,7 @@
 #include "rtcModel.h"
 
 #undef info
-#define info(format, ...) bhmPrintf("@@@ RTC(%d): ", RTC_PERIPHERAL_ID);\
+#define info(format, ...) bhmPrintf("%f @@@ RTC(%d): ", bhmGetCurrentTime()/1000000.0, RTC_PERIPHERAL_ID);\
 bhmPrintf(format, ##__VA_ARGS__);\
 bhmPrintf("\n")
 
@@ -34,10 +34,9 @@ PPM_READ_CB(regRd32) {
   if ((Uns32*)user == &regs.COUNTER) {
 
     *(Uns32*)user = counter;
-    info("READ COUNTER REGISTER - %d\n", *(Uns32*)user);
+    info("READ COUNTER REGISTER - %d", *(Uns32*)user);
     return counter;
   }
-  //info("Read from 0x%08x = 0x%08x (counter 0x%08x)\n", (Uns32)addr - (Uns32)rtc_window, *(Uns32*)user, counter);
   return *(Uns32*)user;
 }
 
@@ -46,7 +45,7 @@ PPM_READ_CB(regRd32) {
 //
 PPM_WRITE_CB(regWr32) {
   *(Uns32*)user = data;
-  info("Write to 0x%08x (user - 0x%08x, data - 0x%08x, window - 0x%08x, pwr - %d) \n", (Uns32)addr - (Uns32)rtcWindow, (Uns32)user, data, (Uns32)rtcWindow, regs.POWER);
+  info("Write to 0x%08x (user - 0x%08x, data - 0x%08x, window - 0x%08x, pwr - %d)", (Uns32)addr - (Uns32)rtcWindow, (Uns32)user, data, (Uns32)rtcWindow, regs.POWER);
 
   if ((Uns32*)user == &regs.TASKS_START && data != 0) {
     regs.TASKS_STOP = 0;
@@ -75,7 +74,7 @@ PPM_WRITE_CB(regWr32) {
     info("EVTEN overwrite!");
   } else if ((Uns32*)user == &regs.EVTENSET) {
     regs.EVTEN = regs.EVTEN | data;
-    info("EVTENSET! - 0x%08x\n", regs.EVTEN);
+    info("EVTENSET! - 0x%08x", regs.EVTEN);
   } else if ((Uns32*)user == &regs.EVTENCLR) {
     /*
        0 0 -> 0
@@ -89,7 +88,7 @@ PPM_WRITE_CB(regWr32) {
     irq = irq | data;
     regs.INTENSET = irq;
     regs.INTENCLR = irq;
-    info("INTENSET! irq - %d\n", irq);
+    info("INTENSET! irq - %d", irq);
   } else if ((Uns32*)user == &regs.INTENCLR) {
     /*
        0 0 -> 0
@@ -132,15 +131,15 @@ static void updateIrqLines() {
     ppmWriteNet(irqHandle, 1);
     irqAsserted = 1;
     shouldTriggerIrq = 0;
-    info("IRQ ON \n");
+    info("IRQ ON");
     bhmWaitDelay(5.0);
     ppmWriteNet(irqHandle, 0);
     irqAsserted = 0;
-    info("IRQ OFF \n");
+    info("IRQ OFF");
   } else if (shouldTriggerIrq == 0 && irqAsserted == 1) {
     ppmWriteNet(irqHandle, 0);
     irqAsserted = 0;
-    info("IRQ OFF \n");
+    info("IRQ OFF");
   }
 }
 
@@ -181,7 +180,7 @@ void loop() {
     const Uns32 signalBitOffset = 16;
     for (i = 0; i < 4; i++) {
       if ((regs.EVTEN & (1 << (signalBitOffset + i))) != 0 && counter == regs.CC[i] && skipCCMatch == 0) {
-        info("match CC[%d] \n\n\n", i);
+        info("match CC[%d]", i);
         regs.EVENTS_COMPARE[i] = 1;
         ppmWriteNet(rtcNotificationHandle, RTC_PERIPHERAL_ID);
         if ((irq & (1 << (signalBitOffset + i))) != 0) {
@@ -193,7 +192,7 @@ void loop() {
     updateIrqLines();
 
     counter = (counter + 1) & 0xFFFFFF;
-    info("tick: %d\n", counter);
+    info("tick: %d", counter);
 
     if (resetCounter != 0) {
       resetCounter = 0;

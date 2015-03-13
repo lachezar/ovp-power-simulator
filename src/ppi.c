@@ -1,5 +1,15 @@
 #include "ppi.h"
 
+#undef info
+#define info(format, ...) icmPrintf("       +++ PPI: ");\
+icmPrintf(format, ##__VA_ARGS__);\
+icmPrintf("\n")
+
+#undef error
+#define error(format, ...) icmPrintf(">>> ERROR IN PPI: ");\
+icmPrintf(format, ##__VA_ARGS__);\
+icmPrintf("\n")
+
 static Uns32 ppiQueue[PPI_CHANNELS_COUNT];
 static Uns32 ppiQueueProcessed[PPI_CHANNELS_COUNT];
 static Uns32 ppiQueueSize = 0;
@@ -13,7 +23,7 @@ void runPPI(icmProcessorP processor) {
   if (shouldRunPPI == 0) {
     return;
   }
-  icmPrintf("**** should run ppi\n");
+  info("running ppi");
   shouldRunPPI = 0;
   
   Uns32 i, j;
@@ -33,9 +43,9 @@ void runPPI(icmProcessorP processor) {
         if (ppiQueueProcessed[j] == 0) {
           // write 1 to ppich.TEP address
           icmWriteProcessorMemory(processor, ppich.TEP, &signal, 4);
-          icmPrintf("****PPI CONNECTION DONE! EEP 0x%08x -> TEP 0x%08x\n", ppich.EEP, ppich.TEP);
+          info("CONNECTION DONE! EEP 0x%08x -> TEP 0x%08x", ppich.EEP, ppich.TEP);
         } else {
-          icmPrintf("****PPI ALREADY TRIGGERED! EEP 0x%08x -> TEP 0x%08x\n", ppich.EEP, ppich.TEP);
+          info("ALREADY TRIGGERED! EEP 0x%08x -> TEP 0x%08x", ppich.EEP, ppich.TEP);
         }
         ppiQueueProcessed[j] = 1;
 
@@ -57,7 +67,7 @@ void syncPPIQueue(Uns32 bitmask) {
 }
 
 NET_WRITE_FN(intPPINetWritten) {
-  icmPrintf("@@@ Trigger PPI Nets with value = %d\n", value);
+  info("Trigger PPI Nets with value = %d", value);
   shouldRunPPI = value;
 }
 
@@ -67,11 +77,11 @@ ICM_MEM_READ_FN(extMemReadPPICB) {
   } else if ((Uns32)address == 0x4001f804) { // PPI Channel group config CHG[1]
     *(Uns32 *)value = ppi.CHG[1];
   } else {
-    icmPrintf("********** Not handled mem location - PPI - 0x%08x\n", (Uns32)address);
+    error("********** Not handled mem location - PPI - 0x%08x", (Uns32)address);
     icmTerminate();
   }
-  icmPrintf(
-    "PPI MEMORY: Reading 0x%08x from 0x%08x\n",
+  info(
+    "Reading 0x%08x from 0x%08x",
     *(Uns32 *)value, (Uns32)address
   );
 }
@@ -81,35 +91,35 @@ ICM_MEM_WRITE_FN(extMemWritePPICB) {
     ppi.CHENSET = *(Uns32*)value;
     ppi.CHEN |= *(Uns32*)value;
     syncPPIQueue(ppi.CHEN);
-    icmPrintf("Write to PPI CHENSET\n");
+    info("Write to PPI CHENSET");
   } else if ((Uns32)address >= 0x4001f510 && (Uns32)address <= 0x4001f58c) { // PPI CHANNEL
     Uns32 id = ((Uns32)address - 0x4001f510) / (2 * sizeof(Uns32));
-    
+
     if ((Uns32)address % (2 * sizeof(Uns32)) == 0) {  
       ppi.CH[id].EEP = (*(Uns32*)value);
-      icmPrintf("Write to PPI CH[%d] EEP\n", id);
+      info("Write to PPI CH[%d] EEP", id);
     } else {
       ppi.CH[id].TEP = (*(Uns32*)value);
-      icmPrintf("Write to PPI CH[%d] TEP\n", id);
+      info("Write to PPI CH[%d] TEP", id);
     }
-    
+
     ppiQueueProcessed[id] = 0;
-    
+
   } else if ((Uns32)address >= 0x4001f800 && (Uns32)address <= 0x4001f80c) { // PPI Channel group configuration 
     Uns32 id = ((Uns32)address - 0x4001f800) / sizeof(Uns32);
     ppi.CHG[id] = (*(Uns32*)value);
-    icmPrintf("Write to PPI CHG[%d] (group!!!)\n", id);
+    info("Write to PPI CHG[%d] (group!!!)", id);
   } else if ((Uns32)address == 0x4001f508) { // PPI Channel clear
     ppi.CHEN &= ~(*(Uns32*)value);
     syncPPIQueue(ppi.CHEN);
-    icmPrintf("Write to PPI CHENCLR ");    
+    info("Write to PPI CHENCLR ");
   } else {
-    icmPrintf("********** Not handled mem location for writing - PPI - 0x%08x\n", (Uns32)address);
+    error("********** Not handled mem location for writing - PPI - 0x%08x", (Uns32)address);
     icmTerminate();
   }
-  
-  icmPrintf(
-    "PPI MEMORY: Writing 0x%08x to 0x%08x (%d, %d, %d)\n",
+
+  info(
+    "Writing 0x%08x to 0x%08x (%d, %d, %d)",
     (*(Uns32*)value), (Uns32)address, (Uns32)bytes, (Uns32)value, (Uns32)userData
   );
 }
