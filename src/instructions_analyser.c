@@ -62,7 +62,7 @@ int load(const char* filename, unsigned int* table, int size) {
 int parse_line(const char* line, unsigned int* address, char* instruction_name, char* instruction_args) {
 
   if (strstr(line, "illegal") != NULL || strstr(line, "<UNDEFINED>") != NULL) {
-    fprintf(stderr, "PARSE ERROR: %s\n", line);
+    fprintf(stderr, "NON-ASSEMBLY LINE: %s\n", line);
     return -1;
   }
 
@@ -74,7 +74,7 @@ int parse_line(const char* line, unsigned int* address, char* instruction_name, 
       strcpy(instruction_args, "");
       return 0;
     } else {
-      fprintf(stderr, "PARSE ERROR: %s\n", line);
+      fprintf(stderr, "NON-ASSEMBLY LINE: %s\n", line);
       return -1;
     }
   } else {
