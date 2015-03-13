@@ -13,13 +13,13 @@ static Uns32 instructionsUsageStats[36];
 Uns32 calculateAverageCurrent(icmProcessorP processor, Uns32 tick, Uns32 address, instruction_type_t instruction_type, Uns32 cycles, Uns16 data) {
 
   // was prev instruction branch - check address delta and apply proper calculations
-  
+
   // calculate current instruction if it is not branch
   // if it is branch set flag that we need to handle branch current next time
-  
+
   // add flashcurrent
   // add persistantPeripheralCurrent based on peripheral state
-  
+
   static Uns32 postProcessBranch = 0;
   static Uns32 prevAddress = 0;
   static Uns32 slotId = 0;
@@ -27,7 +27,7 @@ Uns32 calculateAverageCurrent(icmProcessorP processor, Uns32 tick, Uns32 address
   static Uns32 branchTakenCycles;
   static Uns32 branchNotTakenCurrent;
   static Uns32 branchNotTakenCycles;
-  
+
   Uns32 flashCurrentValue = 0;
   if (address < 0x20000000)  {
     flashCurrentValue = flashCurrent(prevAddress, address);
@@ -44,32 +44,32 @@ Uns32 calculateAverageCurrent(icmProcessorP processor, Uns32 tick, Uns32 address
       cyclesPerTimeSlot[slotId] += branchTakenCycles;
     }
   }
-  
+
   slotId = tick / CURRENT_CYCLES_SLICE;
-  
+
   if (instruction_type == BNE || instruction_type == BEQ || instruction_type == BRANCH) {
     postProcessBranch = 1;
-    
+
     branchTakenCycles = 3;
     branchTakenCurrent = branchTakenCycles * instructionCurrent(processor, instruction_type, cycles, data) + flashCurrentValue;
-    
+
     branchNotTakenCycles = cycles;
     if (instruction_type == BNE) {
       branchNotTakenCurrent = cycles * NOT_TAKEN_BNE_CURRENT + flashCurrentValue;
     } else {
       branchNotTakenCurrent = cycles * NOT_TAKEN_BRANCH_CURRENT + flashCurrentValue;
     }
-    
+
   } else {
     currentPerTimeSlot[slotId] += cycles * instructionCurrent(processor, instruction_type, cycles, data) + flashCurrentValue;
     cyclesPerTimeSlot[slotId] += cycles;
   }
-  
+
   currentPerTimeSlot[slotId] += persistantPeripheralCurrent(processor);
-  
+
   instructionsUsageStats[instruction_type]++;
   prevAddress = address;
-  
+
   return 0;
 }
 
@@ -241,29 +241,35 @@ Uns32 persistantPeripheralCurrent(icmProcessorP processor) {
 }
 
 Uns32 peripheralReadCurrent(Uns32 address) {
-  icmPrintf("peripheralReadCurrent\n");
+  //icmPrintf("peripheralReadCurrent\n");
   return 3000; // put real value here
 }
 
 Uns32 peripheralWriteCurrent(Uns32 address) {
-  icmPrintf("peripheralWriteCurrent\n");
+  //icmPrintf("peripheralWriteCurrent\n");
   return 3000; // put real value here
 }
 
 void printAverageCurrentPerTimeSlot() {
+
+  FILE* fp = fopen("cpu_avg_current.csv", "w+");
+
   int i;
   for (i = 0; i < 1000; i++) {
     if (currentPerTimeSlot[i] == 0 || cyclesPerTimeSlot[i] == 0) break;
     icmPrintf("%f: %f (%d; %f)\n", (double)i * CURRENT_TIME_SLICE, (double)currentPerTimeSlot[i] / (double)cyclesPerTimeSlot[i], cyclesPerTimeSlot[i], (double)currentPerTimeSlot[i]);
+    fprintf(fp, "%f,%f,%f\n", (double)i * CURRENT_TIME_SLICE, (double)(i+1) * CURRENT_TIME_SLICE, (double)currentPerTimeSlot[i] / (double)cyclesPerTimeSlot[i]);
   }
-  
+
+  fclose(fp);
+
   Uns32 instructionsCount = 0;
   for (i = 0; i < 36; i++) {
     instructionsCount += instructionsUsageStats[i];
   }
-  
+
   for (i = 0; i < 36; i++) {
     icmPrintf("%d - %f\n", i, ((double)instructionsUsageStats[i] / instructionsCount) * 100);
   }
-  
+
 }

@@ -257,7 +257,7 @@ static void simulate_custom_platform(icmProcessorP processor) {
       char instructionArgs[20];
       parse_ovp_disassembled_line(disassemble, instructionName, instructionArgs);
       instruction = encode_instruction_data(instructionName, instructionArgs);
-      icmPrintf("In-RAM instruction: %s -> %s %s\n", disassemble, instructionName, instructionArgs);
+      //icmPrintf("In-RAM instruction: %s -> %s %s\n", disassemble, instructionName, instructionArgs);
     }
 
     instruction_type = ((instruction >> 24) & 0xff);
@@ -280,13 +280,14 @@ static void simulate_custom_platform(icmProcessorP processor) {
     runPPI(processor);
 
     if (++dbgcnt % 100 == 0) {
-      icmPrintf("CURRENT TIME IS: %f\n", ((double)tick) * TIME_SLICE);
+      icmPrintf("%f current time\n", ((double)tick) * TIME_SLICE);
     }
 
     if (tick > 1.2*16000000) {
       icmPrintf("****end of execution\n");
       printAverageCurrentPerTimeSlot();
       icmPrintf("ticks - %d\n", tick);
+      icmTerminate();
       break;
     }
   }
