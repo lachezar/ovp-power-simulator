@@ -5,6 +5,8 @@
 
 int load(const char* filename, unsigned int* table, int size) {
 
+  char* unused __attribute__((unused));
+
   FILE *fp;
   fp = fopen(filename, "r");
 
@@ -25,7 +27,7 @@ int load(const char* filename, unsigned int* table, int size) {
 
   while (!feof(fp)) {
 
-    fgets(line, 200, fp);
+    unused = fgets(line, 200, fp);
 
     result = parse_line((const char*)line, &address, instruction_name, instruction_args);
 

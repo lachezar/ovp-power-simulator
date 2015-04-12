@@ -5,6 +5,8 @@ static Int32 loadData(icmProcessorP processor, Uns32 address, Uns32 data);
 
 Int32 loadHexFile(icmProcessorP processor, char *fileName) {
 
+  Uns32 unused __attribute__((unused));
+
   FILE *fp;
   fp = fopen(fileName, "r");
 
@@ -30,14 +32,14 @@ Int32 loadHexFile(icmProcessorP processor, char *fileName) {
       return 0; // eof
       
     } else if (byteCount == 2 && recordType == 4) {
-      fscanf(fp, "%04x", &baseAddress);
+      unused = fscanf(fp, "%04x", &baseAddress);
       baseAddress = (baseAddress << 16);
       
       icmPrintf("\nNew base address 0x%08x\n", baseAddress);
     } else if (recordType == 0) {
       Uns32 data, i;
       for (i = 0; i < byteCount; i += sizeof(Uns32)) {
-        fscanf(fp, "%08x", &data);
+        unused = fscanf(fp, "%08x", &data);
         data = switchEndianness(data);
         if (loadData(processor, baseAddress + addressOffset + i, data) != 0) {
           return -1;
@@ -46,13 +48,13 @@ Int32 loadHexFile(icmProcessorP processor, char *fileName) {
     } else if (recordType == 3) {
       // load CS:IP
       Uns32 registers;
-      fscanf(fp, "%08x", &registers);
+      unused = fscanf(fp, "%08x", &registers);
       registers = switchEndianness(registers);
 
       //Uns32 cs = ((registers & 0xFFFF0000) >> 16);
       //Uns32 ipReg = (registers & 0x0000FFFF);
     }
-    fscanf(fp, "%*02x\n");
+    unused = fscanf(fp, "%*02x\n");
   }
 
   if (fclose(fp) != 0) {
