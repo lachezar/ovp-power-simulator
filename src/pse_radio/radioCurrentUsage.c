@@ -40,6 +40,12 @@ void addStateLogEntry(Uns32 state) {
 void printAvgCurrent() {
   bhmPrintf("RADIO AVERAGE CURRENT LOG:\n\n");
 
+  if (stateLogSize == 0) {
+    Uns32 unused __attribute__((unused));
+    unused = remove("radio_avg_current.csv");
+    return; // nothing to report
+  }
+
   FILE* fp = fopen("radio_avg_current.csv", "w+");
 
   Uns32 i;
