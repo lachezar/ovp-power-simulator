@@ -10,6 +10,8 @@
 #include "currentUsage.h"
 #include "cycles_table.h"
 
+#define TOTAL_SIMULATION_TIME (1.2)
+
 //#define TRACE 1
 
 #ifdef TRACE
@@ -32,8 +34,6 @@ int main(int argc, char ** argv) {
   
   // initialize CpuManager
   icmInitPlatform(ICM_VERSION, ICM_VERBOSE|ICM_ENABLE_IMPERAS_INTERCEPTS|ICM_STOP_ON_CTRLC, 0, 0, "platform");
-
-  //icmSetWallClockFactor(1.0);
 
   // select library components
   const char *vlnvRoot = NULL;   //When NULL use default library
@@ -240,8 +240,6 @@ static void simulate_custom_platform(icmProcessorP processor) {
       tick += 2;
     }
 
-    //icmPrintf("%f -> 0x%08x\n", (double)tick * TIME_SLICE, currentPC);
-
     isbranch = 0;
     instruction_type_t instruction_type = 0;
     unsigned char cycles = 1;
@@ -257,7 +255,6 @@ static void simulate_custom_platform(icmProcessorP processor) {
       char instructionArgs[20];
       parse_ovp_disassembled_line(disassemble, instructionName, instructionArgs);
       instruction = encode_instruction_data(instructionName, instructionArgs);
-      //icmPrintf("In-RAM instruction: %s -> %s %s\n", disassemble, instructionName, instructionArgs);
     }
 
     instruction_type = ((instruction >> 24) & 0xff);
@@ -283,7 +280,7 @@ static void simulate_custom_platform(icmProcessorP processor) {
       icmPrintf("%f current time\n", ((double)tick) * TIME_SLICE);
     }
 
-    if (tick > 1.2*16000000) {
+    if (tick > TOTAL_SIMULATION_TIME*16000000) {
       icmPrintf("****end of execution\n");
       printAverageCurrentPerTimeSlot();
       icmPrintf("ticks - %d\n", tick);

@@ -35,7 +35,7 @@ Uns32 calculateAverageCurrent(icmProcessorP processor, Uns32 tick, Uns32 address
 
   if (postProcessBranch != 0) {
     postProcessBranch = 0;
-    //icmPrintf("delta %x %x %d\n", address, prevAddress, address - prevAddress);
+
     if (address - prevAddress == 2) { // branch not taken
       currentPerTimeSlot[slotId] += branchNotTakenCurrent;
       cyclesPerTimeSlot[slotId] += branchNotTakenCycles;
@@ -85,7 +85,6 @@ Uns32 instructionCurrent(icmProcessorP processor, instruction_type_t instruction
     // run the function to calculate LDR
     current = ldrInstructionCurrent(processor, data);
   } else if (instruction_type == MUL) {
-    //current = 3800; // uA
     current = 4520;
   } else if (instruction_type == NOP) {
     current = 3827; // uA
@@ -190,12 +189,10 @@ static Uns32 memoryAccessAddress(icmProcessorP processor, Uns16 data) {
   
   if (registerRegisterFormat == 0) { // format 1 [reg, #offset]
     addressOffset = (data & 0x7ff);
-    //icmPrintf("format 1");
   } else { // format 2 [reg, reg]
     Uns32 regId2 = (data & 0x7ff);
     sprintf(buffer, "r%d", regId2);
     icmReadReg(processor, buffer, &addressOffset);
-    //icmPrintf("format 2(%d %d)", regId, regId2);
   }
   
   Uns32 memoryLocation = addressBase + addressOffset;
@@ -241,12 +238,10 @@ Uns32 persistantPeripheralCurrent(icmProcessorP processor) {
 }
 
 Uns32 peripheralReadCurrent(Uns32 address) {
-  //icmPrintf("peripheralReadCurrent\n");
   return 3000; // put real value here
 }
 
 Uns32 peripheralWriteCurrent(Uns32 address) {
-  //icmPrintf("peripheralWriteCurrent\n");
   return 3000; // put real value here
 }
 

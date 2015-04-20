@@ -1,3 +1,0 @@
-make -C "../../../Documents/master thesis/hi/hi2/Src/nrf51822/Board/nrf6310/rng_example/gcc" release
-"d:\MentorGraphics\Sourcery_CodeBench_Lite_for_ARM_EABI\bin\arm-none-eabi-objdump.exe" -D -l --target ihex -Mforce-thumb -marm "../../../Documents/master thesis/hi/hi2/Src/nrf51822/Board/nrf6310/rng_example/gcc/_build/rng_example_gcc_xxaa.hex" > ./rng.dis.asm 
-python generate_cycle_map.py ./rng.dis.asm

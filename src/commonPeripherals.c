@@ -108,10 +108,8 @@ ICM_MEM_WRITE_FN(extMemWriteGPIOCB) {
 ICM_MEM_READ_FN(extMemReadUICRCB) {
   if ((Uns32)address == 0x10001014) {
     *(Uns32 *)value = 0xFFFFFFFF;
-    icmPrintf("WTF!!!");
   } else if ((Uns32)address == 0x10001000) {
     *(Uns32 *)value = 0xFFFFFFFF;
-    icmPrintf("FFS!!!");
   } else {
     icmPrintf("********** Not handled mem location - UICR");
     icmTerminate();
